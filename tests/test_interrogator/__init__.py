@@ -1,0 +1,2 @@
+"""Interrogator tests"""
+

@@ -1,0 +1,123 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "provchain"
+version = "1.1.3"
+description = "Supply chain security platform with behavioral analysis and provenance verification"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Icarus Protection Firm"}
+]
+keywords = ["security", "supply-chain", "dependencies", "vulnerability", "provenance"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "httpx>=0.25.0",
+    "pydantic>=2.0.0",
+    "sqlalchemy>=2.0.0",
+    "packaging>=23.0",
+    "tomli>=2.0.0; python_version < '3.11'",
+    "tomli-w>=1.0.0",
+    "build>=0.10.0",
+]
+
+[project.optional-dependencies]
+behavioral = [
+    "docker>=6.0.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "hypothesis>=6.0.0",
+    "bandit>=1.7.0",
+]
+
+[project.scripts]
+provchain = "provchain.cli.main:main"
+
+[project.urls]
+Homepage = "https://github.com/ipf/provchain"
+Documentation = "https://provchain.readthedocs.io"
+Repository = "https://github.com/ipf/provchain"
+Issues = "https://github.com/ipf/provchain/issues"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "N",  # pep8-naming
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]  # unused imports allowed in __init__.py
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+follow_imports = "normal"
+namespace_packages = true
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
