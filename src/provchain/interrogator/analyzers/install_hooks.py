@@ -57,9 +57,11 @@ class InstallHookAnalyzer(BaseAnalyzer):
                 matches = re.finditer(pattern, content, re.IGNORECASE)
                 for match in matches:
                     line_num = content[: match.start()].count("\n") + 1
+                    # Create safe ID from pattern (extract replace operations outside f-string)
+                    pattern_id = pattern.replace(r'\s*\(', '').replace('.', '_')
                     findings.append(
                         Finding(
-                            id=f"install_hook_{pattern.replace(r'\s*\(', '').replace('.', '_')}",
+                            id=f"install_hook_{pattern_id}",
                             title=f"Suspicious code: {description}",
                             description=f"Found {description} in {file_path.name} at line {line_num}",
                             severity=RiskLevel.HIGH,
