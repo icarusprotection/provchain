@@ -7,7 +7,7 @@
 
 ## Core Value Proposition
 
-Trust verification across the entire dependency lifecycle—before install, during build, and continuously after deployment.
+Trust verification across the entire dependency lifecycle before install, during build, and continuously after deployment.
 
 ## Features
 
@@ -245,7 +245,11 @@ For detailed documentation, see:
 
 ## Links
 
+<<<<<<< HEAD
 - [Documentation](https://icarusprotection.com)
+=======
+- [Documentation](https://provchain.readthedocs.io)
+>>>>>>> 57fa40531f7dcb3ef8807efc6a0fd8f581bca595
 - [GitHub Repository](https://github.com/icarusprotection/provchain)
 - [Issue Tracker](https://github.com/icarusprotection/provchain/issues)
 
