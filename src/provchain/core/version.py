@@ -34,4 +34,3 @@ def is_valid_version(version_str: str) -> bool:
         return True
     except Exception:
         return False
-

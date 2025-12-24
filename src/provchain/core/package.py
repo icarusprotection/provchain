@@ -24,9 +24,7 @@ class PackageSpec(NamedTuple):
         elif self.specifier:
             # For specifiers, we'll need to resolve the version
             # For now, use the specifier as version
-            return PackageIdentifier(
-                ecosystem=ecosystem, name=self.name, version=self.specifier
-            )
+            return PackageIdentifier(ecosystem=ecosystem, name=self.name, version=self.specifier)
         else:
             # No version specified, use "latest" placeholder
             return PackageIdentifier(ecosystem=ecosystem, name=self.name, version="latest")
@@ -80,7 +78,7 @@ def parse_package_spec(spec: str) -> PackageSpec:
 def parse_requirements_file(path: str) -> list[PackageSpec]:
     """Parse a requirements.txt file"""
     specs = []
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             # Skip comments and empty lines
@@ -122,4 +120,3 @@ def version_satisfies(version: str, specifier: str) -> bool:
         return v in spec
     except Exception:
         return False
-

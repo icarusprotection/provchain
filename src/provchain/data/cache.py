@@ -2,9 +2,7 @@
 
 import hashlib
 import json
-import time
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Any
 
 from provchain.data.db import Database
@@ -152,4 +150,3 @@ class Cache:
             session.commit()
         finally:
             session.close()
-

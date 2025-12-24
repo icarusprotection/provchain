@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 authors = [
-    {name = "Icarus Protection Firm"}
+    {name = "Icarus Protection"}
 ]
 keywords = ["security", "supply-chain", "dependencies", "vulnerability", "provenance"]
 classifiers = [
@@ -55,10 +55,10 @@ dev = [
 provchain = "provchain.cli.main:main"
 
 [project.urls]
-Homepage = "https://github.com/ipf/provchain"
-Documentation = "https://provchain.readthedocs.io"
-Repository = "https://github.com/ipf/provchain"
-Issues = "https://github.com/ipf/provchain/issues"
+Homepage = "https://github.com/icarusprotection/provchain"
+Documentation = "https://icarusprotection.com"
+Repository = "https://github.com/icarusprotection/provchain"
+Issues = "https://github.com/icarusprotection/provchain/issues"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -69,6 +69,8 @@ where = ["src"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+
+[tool.ruff.lint]
 select = [
     "E",  # pycodestyle errors
     "W",  # pycodestyle warnings
@@ -81,7 +83,7 @@ ignore = [
     "E501",  # line too long (handled by formatter)
 ]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # unused imports allowed in __init__.py
 
 [tool.mypy]

@@ -1,6 +1,5 @@
 """Package metadata quality analyzer"""
 
-import re
 from urllib.parse import urlparse
 
 from provchain.data.models import AnalysisResult, Finding, PackageMetadata, RiskLevel
@@ -177,4 +176,3 @@ class MetadataAnalyzer(BaseAnalyzer):
                 "has_license": bool(package_metadata.license),
             },
         )
-

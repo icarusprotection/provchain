@@ -14,8 +14,8 @@ def calculate_sha256(file_path: str | Path) -> str:
 
 
 def calculate_md5(file_path: str | Path) -> str:
-    """Calculate MD5 hash of a file"""
-    md5 = hashlib.md5()
+    """Calculate MD5 hash of a file (non-cryptographic use only)"""
+    md5 = hashlib.md5(usedforsecurity=False)
     with open(file_path, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
             md5.update(chunk)
@@ -41,4 +41,3 @@ def calculate_hash(file_path: str | Path, algorithm: str = "sha256") -> str:
         return calculate_blake2b(file_path)
     else:
         raise ValueError(f"Unsupported hash algorithm: {algorithm}")
-

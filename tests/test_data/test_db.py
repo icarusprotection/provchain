@@ -365,17 +365,17 @@ def test_store_alert_updates_existing_path(temp_db):
     assert found.severity == RiskLevel.HIGH
 
 
-def test_database_init_default_path():
+def test_database_init_default_path(tmp_path):
     """Test Database initialization with default path - covers line 132"""
-    from unittest.mock import patch, MagicMock
+    from unittest.mock import patch
     from pathlib import Path
     
-    mock_home = Path("/mock/home")
-    with patch('pathlib.Path.home', return_value=mock_home):
-        with patch('provchain.data.db.create_engine') as mock_engine:
-            db = Database()
-            
-            # Should use default path (line 132)
-            expected_path = mock_home / ".provchain" / "provchain.db"
-            assert db.db_path == expected_path
+    with patch('pathlib.Path.home', return_value=tmp_path):
+        db = Database()
+        
+        # Should use default path (line 132)
+        expected_path = tmp_path / ".provchain" / "provchain.db"
+        assert db.db_path == expected_path
+        # Clean up
+        db.engine.dispose()
 

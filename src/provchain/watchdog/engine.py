@@ -1,7 +1,7 @@
 """Watchdog engine: Monitoring orchestrator"""
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 from provchain.data.db import Database
@@ -79,4 +79,3 @@ class WatchdogEngine:
     def stop(self) -> None:
         """Stop watchdog daemon"""
         self.running = False
-

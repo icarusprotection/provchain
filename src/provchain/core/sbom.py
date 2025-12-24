@@ -4,12 +4,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from provchain.data.models import PackageIdentifier, SBOM
+from provchain.data.models import SBOM, PackageIdentifier
 
 
-def generate_sbom_from_requirements(
-    requirements_path: str, name: str = "project"
-) -> SBOM:
+def generate_sbom_from_requirements(requirements_path: str, name: str = "project") -> SBOM:
     """Generate SBOM from requirements.txt file"""
     from provchain.core.package import parse_requirements_file
 
@@ -25,9 +23,7 @@ def generate_sbom_from_requirements(
             # For packages without version specified in requirements file,
             # mark version as "unknown" to indicate it needs to be resolved
             # This is intentional behavior when version is not specified
-            packages.append(
-                PackageIdentifier(ecosystem="pypi", name=spec.name, version="unknown")
-            )
+            packages.append(PackageIdentifier(ecosystem="pypi", name=spec.name, version="unknown"))
 
     return SBOM(
         name=name,
@@ -39,7 +35,7 @@ def generate_sbom_from_requirements(
 def load_sbom_from_file(path: str | Path) -> SBOM:
     """Load SBOM from JSON file"""
     path = Path(path)
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
         return SBOM.model_validate(data)
 
@@ -75,4 +71,3 @@ def export_sbom_cyclonedx(sbom: SBOM) -> dict[str, Any]:
         },
         "components": components,
     }
-

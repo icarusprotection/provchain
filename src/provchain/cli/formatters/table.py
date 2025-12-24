@@ -1,6 +1,5 @@
 """Table formatter using Rich"""
 
-import json
 from rich.console import Console
 from rich.table import Table
 
@@ -10,9 +9,11 @@ from provchain.data.models import VetReport
 def format_table(report: VetReport, console: Console) -> None:
     """Format report as Rich table"""
     # Header
-    console.print(f"\n[bold]ProvChain Analysis Report[/bold]")
+    console.print("\n[bold]ProvChain Analysis Report[/bold]")
     console.print(f"Package: {report.package.name} @ {report.package.version}")
-    console.print(f"Overall Risk: {report.overall_risk.value.upper()} (Score: {report.risk_score:.1f}/10, Confidence: {report.confidence*100:.0f}%)")
+    console.print(
+        f"Overall Risk: {report.overall_risk.value.upper()} (Score: {report.risk_score:.1f}/10, Confidence: {report.confidence * 100:.0f}%)"
+    )
 
     # Analyzer results table
     table = Table(title="Analysis Results")
@@ -42,4 +43,3 @@ def format_table(report: VetReport, console: Console) -> None:
             console.print(f"  • {rec}")
 
     console.print()
-

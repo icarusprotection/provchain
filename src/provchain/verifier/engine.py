@@ -44,15 +44,14 @@ class VerifierEngine:
         import importlib.util
         import site
         from pathlib import Path
-        
+
         package_name = package_identifier.name
-        version = package_identifier.version
-        
+
         results: dict[str, Any] = {
             "package": str(package_identifier),
             "verifications": {},
         }
-        
+
         # Try to locate installed package
         try:
             spec = importlib.util.find_spec(package_name)
@@ -62,23 +61,23 @@ class VerifierEngine:
                     "note": f"Package {package_name} is not installed",
                 }
                 return results
-            
+
             package_path = Path(spec.origin)
-            
+
             # Try to find the installed package's distribution metadata
             # Look in site-packages for .dist-info or .egg-info
             site_packages = Path(site.getsitepackages()[0] if site.getsitepackages() else "")
-            
+
             dist_info = None
             for dist_dir in site_packages.glob(f"{package_name.replace('-', '_')}-*.dist-info"):
                 dist_info = dist_dir
                 break
-            
+
             if not dist_info:
                 for dist_dir in site_packages.glob(f"{package_name.replace('-', '_')}-*.egg-info"):
                     dist_info = dist_dir
                     break
-            
+
             if dist_info:
                 # Try to verify the installed package
                 # For installed packages, we can check metadata
@@ -88,7 +87,7 @@ class VerifierEngine:
                         "status": "found",
                         "path": str(metadata_file),
                     }
-                    
+
                     # Try hash verification if we can locate the wheel/sdist
                     # This is limited for installed packages
                     results["verifications"]["hash"] = {
@@ -105,12 +104,11 @@ class VerifierEngine:
                     "path": str(package_path),
                     "note": "Package found but distribution metadata not located",
                 }
-                
+
         except Exception as e:
             results["verifications"]["error"] = {
                 "status": "error",
                 "error": str(e),
             }
-        
-        return results
 
+        return results

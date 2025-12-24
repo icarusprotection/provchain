@@ -2,10 +2,9 @@
 
 import uuid
 from datetime import timedelta
-from typing import Any
 
 from provchain.data.db import Database
-from provchain.data.models import Alert, PackageIdentifier, RiskLevel, SBOM
+from provchain.data.models import SBOM, Alert, RiskLevel
 from provchain.utils.network import HTTPClient
 
 
@@ -26,7 +25,7 @@ class CVEMonitor:
         for package in sbom.packages:
             if package.ecosystem != "pypi":
                 continue  # Only support PyPI for now
-            
+
             try:
                 # Query OSV API
                 query = {
@@ -36,19 +35,19 @@ class CVEMonitor:
                     },
                     "version": package.version,
                 }
-                
+
                 # Query OSV API
                 with HTTPClient(base_url="https://api.osv.dev") as client:
                     response = client.post("/v1/query", json=query)
                     if response.status_code == 200:
                         data = response.json()
                         vulns = data.get("vulns", [])
-                        
+
                         for vuln in vulns:
                             vuln_id = vuln.get("id", "unknown")
                             summary = vuln.get("summary", "No summary available")
                             severity = vuln.get("database_specific", {}).get("severity", "UNKNOWN")
-                            
+
                             # Map severity to RiskLevel
                             severity_map = {
                                 "CRITICAL": RiskLevel.CRITICAL,
@@ -57,7 +56,7 @@ class CVEMonitor:
                                 "LOW": RiskLevel.LOW,
                             }
                             risk_level = severity_map.get(severity.upper(), RiskLevel.MEDIUM)
-                            
+
                             alerts.append(
                                 Alert(
                                     id=str(uuid.uuid4()),
@@ -80,4 +79,3 @@ class CVEMonitor:
                 continue
 
         return alerts
-

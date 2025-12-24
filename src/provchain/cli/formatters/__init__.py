@@ -16,4 +16,3 @@ def format_report(report, format_type: str, console) -> None:
         format_markdown(report, console)
     else:
         format_table(report, console)
-

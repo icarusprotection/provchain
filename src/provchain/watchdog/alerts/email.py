@@ -2,7 +2,6 @@
 
 import smtplib
 from email.mime.text import MIMEText
-from typing import Any
 
 from provchain.data.models import Alert
 
@@ -60,4 +59,3 @@ Recommended Action:
         except Exception:
             # Log error
             pass
-

@@ -1,7 +1,6 @@
 """Supply chain attack detection command"""
 
 import sys
-from pathlib import Path
 
 import typer
 from rich.console import Console
@@ -13,7 +12,6 @@ from provchain.data.db import Database
 from provchain.data.models import AttackHistory, RiskLevel
 from provchain.integrations.pypi import PyPIClient
 from provchain.interrogator.analyzers.attack import AttackAnalyzer
-from provchain.interrogator.engine import InterrogatorEngine
 
 app = typer.Typer(name="attack", help="Supply chain attack detection")
 console = Console()
@@ -21,8 +19,12 @@ console = Console()
 
 @app.command()
 def detect(
-    package: str = typer.Argument(..., help="Package specifier (e.g., 'requests' or 'requests==2.31.0')"),
-    detailed: bool = typer.Option(False, "--detailed", "-d", help="Show detailed attack information"),
+    package: str = typer.Argument(
+        ..., help="Package specifier (e.g., 'requests' or 'requests==2.31.0')"
+    ),
+    detailed: bool = typer.Option(
+        False, "--detailed", "-d", help="Show detailed attack information"
+    ),
     format: str = typer.Option("table", "--format", "-f", help="Output format: table, json"),
 ) -> None:
     """Detect supply chain attacks for a package"""
@@ -51,7 +53,9 @@ def detect(
             error_msg = str(e)
             if "not found" in error_msg.lower():
                 console.print(f"[red]Error: Package or version not found: {error_msg}[/red]")
-                console.print("[yellow]Tip: Verify the package name and version are correct[/yellow]")
+                console.print(
+                    "[yellow]Tip: Verify the package name and version are correct[/yellow]"
+                )
             else:
                 console.print(f"[red]Error: Invalid package specification: {error_msg}[/red]")
             raise typer.Exit(1)
@@ -59,7 +63,7 @@ def detect(
             # Network or other errors
             error_type = type(e).__name__
             if "HTTP" in error_type or "Connection" in error_type or "Timeout" in error_type:
-                console.print(f"[red]Error: Network error while fetching package information[/red]")
+                console.print("[red]Error: Network error while fetching package information[/red]")
                 console.print(f"[yellow]Details: {str(e)}[/yellow]")
                 console.print("[yellow]Tip: Check your internet connection and try again[/yellow]")
             else:
@@ -72,6 +76,7 @@ def detect(
         _display_attack_table(result, detailed)
     elif format == "json":
         import json
+
         output_str = json.dumps(result.model_dump(), indent=2, default=str)
         console.print(output_str)
     else:
@@ -104,7 +109,7 @@ def history(
     except Exception as e:
         error_type = type(e).__name__
         if "HTTP" in error_type or "Connection" in error_type:
-            console.print(f"[red]Error: Network error while retrieving attack history[/red]")
+            console.print("[red]Error: Network error while retrieving attack history[/red]")
             console.print(f"[yellow]Details: {str(e)}[/yellow]")
         else:
             console.print(f"[red]Error: Could not retrieve attack history: {str(e)}[/red]")
@@ -119,6 +124,7 @@ def history(
         _display_attack_history_table(attacks)
     elif format == "json":
         import json
+
         output_str = json.dumps([a.model_dump() for a in attacks], indent=2, default=str)
         console.print(output_str)
     else:
@@ -127,9 +133,9 @@ def history(
 
 def _display_attack_table(result, detailed: bool = False) -> None:
     """Display attack detection results in a table format"""
-    console.print(f"\n[bold]Attack Detection Results[/bold]")
+    console.print("\n[bold]Attack Detection Results[/bold]")
     console.print(f"Risk Score: {result.risk_score:.1f}/10")
-    console.print(f"Confidence: {result.confidence*100:.0f}%")
+    console.print(f"Confidence: {result.confidence * 100:.0f}%")
     console.print(f"Attacks Detected: {len(result.findings)}\n")
 
     if not result.findings:
@@ -155,7 +161,9 @@ def _display_attack_table(result, detailed: bool = False) -> None:
         total = sum(counts.values())
         max_severity = max(
             (s for s, c in counts.items() if c > 0),
-            key=lambda s: ["low", "medium", "high", "critical"].index(s) if s in ["low", "medium", "high", "critical"] else -1,
+            key=lambda s: ["low", "medium", "high", "critical"].index(s)
+            if s in ["low", "medium", "high", "critical"]
+            else -1,
             default="low",
         )
         severity_color = {
@@ -184,7 +192,9 @@ def _display_attack_table(result, detailed: bool = False) -> None:
                 RiskLevel.LOW: "green",
             }.get(finding.severity, "white")
 
-            console.print(f"  [{severity_color}]{finding.severity.value.upper()}[/{severity_color}] {finding.title}")
+            console.print(
+                f"  [{severity_color}]{finding.severity.value.upper()}[/{severity_color}] {finding.title}"
+            )
             console.print(f"    {finding.description}")
             if finding.evidence:
                 console.print(f"    Evidence: {', '.join(finding.evidence[:3])}")
@@ -221,4 +231,3 @@ def _display_attack_history_table(attacks: list[AttackHistory]) -> None:
         )
 
     console.print(table)
-

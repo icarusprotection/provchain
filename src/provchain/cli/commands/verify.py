@@ -31,5 +31,6 @@ def verify(
             result = engine.verify_package(spec.to_identifier())
             console.print(f"Verification result: {result}")
         except ValueError:
-            console.print(f"[red]Error:[/red] Invalid artifact path or package specifier: {artifact}")
-
+            console.print(
+                f"[red]Error:[/red] Invalid artifact path or package specifier: {artifact}"
+            )

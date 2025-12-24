@@ -44,7 +44,10 @@ class ReleaseMonitor:
                                 severity=RiskLevel.LOW,
                                 title=f"New release detected: {package_name} {latest_version}",
                                 description=f"Package {package_name} released version {latest_version}",
-                                evidence={"version": latest_version, "release_time": package_info.latest_release.isoformat()},
+                                evidence={
+                                    "version": latest_version,
+                                    "release_time": package_info.latest_release.isoformat(),
+                                },
                                 recommended_action="Review release notes and changes",
                             )
                         )
@@ -54,4 +57,3 @@ class ReleaseMonitor:
             pass
 
         return alerts
-

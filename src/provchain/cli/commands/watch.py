@@ -58,4 +58,3 @@ def status() -> None:
     console.print(f"Unresolved alerts: {len(alerts)}")
     for alert in alerts:
         console.print(f"  - {alert.title} ({alert.severity.value})")
-

@@ -1,7 +1,6 @@
 """Docker container management for sandboxing"""
 
 import subprocess
-from pathlib import Path
 from typing import Any
 
 
@@ -94,4 +93,3 @@ class SandboxContainer:
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.cleanup()
-

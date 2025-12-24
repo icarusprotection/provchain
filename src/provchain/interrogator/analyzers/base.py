@@ -23,4 +23,3 @@ class BaseAnalyzer(ABC):
         # Higher confidence with more findings
         confidence = min(0.5 + (len(findings) * 0.1), 1.0)
         return confidence
-

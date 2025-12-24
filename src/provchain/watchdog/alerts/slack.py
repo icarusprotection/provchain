@@ -1,8 +1,5 @@
 """Slack webhook integration"""
 
-import json
-from typing import Any
-
 import httpx
 
 from provchain.data.models import Alert
@@ -52,4 +49,3 @@ class SlackAlerter:
         except Exception:
             # Log error
             pass
-

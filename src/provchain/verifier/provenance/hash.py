@@ -53,4 +53,3 @@ class HashVerifier:
             return {"error": f"Failed to fetch expected hash: {e}"}
 
         return {"error": "Hash information not found on PyPI"}
-

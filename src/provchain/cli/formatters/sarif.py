@@ -1,6 +1,7 @@
 """SARIF formatter for GitHub Actions"""
 
 import json
+
 from rich.console import Console
 
 from provchain.data.models import VetReport
@@ -48,4 +49,3 @@ def format_sarif(report: VetReport, console: Console) -> None:
             )
 
     console.print(json.dumps(sarif, indent=2))
-

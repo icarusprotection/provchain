@@ -11,10 +11,8 @@ from provchain.core.package import parse_package_spec, parse_requirements_file
 from provchain.data.cache import Cache
 from provchain.data.db import Database
 from provchain.data.models import RiskLevel, VulnerabilityResult
-from provchain.integrations.osv import OSVClient
 from provchain.integrations.pypi import PyPIClient
 from provchain.interrogator.analyzers.vulnerability import VulnerabilityAnalyzer
-from provchain.cli.formatters import format_report
 
 app = typer.Typer(name="vuln", help="Vulnerability detection and scanning")
 console = Console()
@@ -23,9 +21,13 @@ console = Console()
 @app.command()
 def scan(
     requirements: str = typer.Option(None, "-r", "--requirements", help="Requirements file path"),
-    format: str = typer.Option("table", "--format", "-f", help="Output format: table, json, sarif, markdown"),
+    format: str = typer.Option(
+        "table", "--format", "-f", help="Output format: table, json, sarif, markdown"
+    ),
     output: str = typer.Option(None, "-o", "--output", help="Output file path"),
-    severity: str = typer.Option(None, "--severity", help="Filter by severity: critical, high, medium, low"),
+    severity: str = typer.Option(
+        None, "--severity", help="Filter by severity: critical, high, medium, low"
+    ),
     cve_db: str = typer.Option("osv", "--cve-db", help="CVE database: osv, nvd (default: osv)"),
 ) -> None:
     """Scan requirements file for vulnerabilities"""
@@ -62,7 +64,9 @@ def scan(
                     pkg_metadata = pypi.get_package_info(spec.name)
                     pkg_id = pkg_metadata.identifier
                 except Exception as e:
-                    console.print(f"[yellow]Warning: Could not resolve version for {spec.name}: {e}[/yellow]")
+                    console.print(
+                        f"[yellow]Warning: Could not resolve version for {spec.name}: {e}[/yellow]"
+                    )
                     continue
 
             # Get package metadata
@@ -79,9 +83,7 @@ def scan(
         severity_level = RiskLevel(severity.lower())
         filtered_results = []
         for result in results:
-            filtered_vulns = [
-                v for v in result.vulnerabilities if v.severity == severity_level
-            ]
+            filtered_vulns = [v for v in result.vulnerabilities if v.severity == severity_level]
             if filtered_vulns:
                 result.vulnerabilities = filtered_vulns
                 result.total_count = len(filtered_vulns)
@@ -93,6 +95,7 @@ def scan(
         _display_vulnerability_table(results)
     elif format == "json":
         import json
+
         output_data = [r.model_dump() for r in results]
         output_str = json.dumps(output_data, indent=2, default=str)
         if output:
@@ -116,9 +119,13 @@ def scan(
 
 @app.command()
 def check(
-    package: str = typer.Argument(..., help="Package specifier (e.g., 'requests' or 'requests==2.31.0')"),
+    package: str = typer.Argument(
+        ..., help="Package specifier (e.g., 'requests' or 'requests==2.31.0')"
+    ),
     format: str = typer.Option("table", "--format", "-f", help="Output format: table, json"),
-    severity: str = typer.Option(None, "--severity", help="Filter by severity: critical, high, medium, low"),
+    severity: str = typer.Option(
+        None, "--severity", help="Filter by severity: critical, high, medium, low"
+    ),
     cve_db: str = typer.Option("osv", "--cve-db", help="CVE database: osv, nvd (default: osv)"),
 ) -> None:
     """Check specific package for vulnerabilities"""
@@ -128,7 +135,7 @@ def check(
 
     # Parse package spec
     spec = parse_package_spec(package)
-    
+
     # Initialize analyzer
     analyzer = VulnerabilityAnalyzer(cache=cache, db=db)
 
@@ -147,7 +154,9 @@ def check(
             error_msg = str(e)
             if "not found" in error_msg.lower():
                 console.print(f"[red]Error: Package or version not found: {error_msg}[/red]")
-                console.print("[yellow]Tip: Verify the package name and version are correct[/yellow]")
+                console.print(
+                    "[yellow]Tip: Verify the package name and version are correct[/yellow]"
+                )
             else:
                 console.print(f"[red]Error: Invalid package specification: {error_msg}[/red]")
             raise typer.Exit(1)
@@ -155,7 +164,7 @@ def check(
             # Network or other errors
             error_type = type(e).__name__
             if "HTTP" in error_type or "Connection" in error_type or "Timeout" in error_type:
-                console.print(f"[red]Error: Network error while fetching package information[/red]")
+                console.print("[red]Error: Network error while fetching package information[/red]")
                 console.print(f"[yellow]Details: {str(e)}[/yellow]")
                 console.print("[yellow]Tip: Check your internet connection and try again[/yellow]")
             else:
@@ -176,6 +185,7 @@ def check(
         _display_vulnerability_table([vuln_result])
     elif format == "json":
         import json
+
         output_str = json.dumps(vuln_result.model_dump(), indent=2, default=str)
         console.print(output_str)
     else:
@@ -189,7 +199,9 @@ def check(
 @app.command()
 def prioritize(
     requirements: str = typer.Option(None, "-r", "--requirements", help="Requirements file path"),
-    severity: str = typer.Option("critical", "--severity", help="Minimum severity: critical, high, medium, low"),
+    severity: str = typer.Option(
+        "critical", "--severity", help="Minimum severity: critical, high, medium, low"
+    ),
     format: str = typer.Option("table", "--format", "-f", help="Output format: table, json"),
 ) -> None:
     """Prioritize vulnerabilities by severity"""
@@ -245,14 +257,17 @@ def _display_vulnerability_table(results: list[VulnerabilityResult]) -> None:
                 RiskLevel.LOW: "green",
             }.get(vuln.severity, "white")
 
-            console.print(f"  [{severity_color}]{vuln.severity.value.upper()}[/{severity_color}] {vuln.id}: {vuln.summary}")
+            console.print(
+                f"  [{severity_color}]{vuln.severity.value.upper()}[/{severity_color}] {vuln.id}: {vuln.summary}"
+            )
             if vuln.cvss_score:
-                console.print(f"    CVSS: {vuln.cvss_score.base_score:.1f} ({vuln.cvss_score.vector})")
+                console.print(
+                    f"    CVSS: {vuln.cvss_score.base_score:.1f} ({vuln.cvss_score.vector})"
+                )
             if vuln.fixed_versions:
                 console.print(f"    Fixed in: {', '.join(vuln.fixed_versions)}")
             if vuln.exploit_available:
-                console.print(f"    [red]⚠ EXPLOIT AVAILABLE[/red]")
+                console.print("    [red]⚠ EXPLOIT AVAILABLE[/red]")
             if vuln.references:
                 console.print(f"    References: {vuln.references[0]}")
             console.print()
-

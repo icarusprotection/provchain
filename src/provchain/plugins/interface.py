@@ -26,4 +26,3 @@ class ReporterPlugin(ABC):
     def report(self, report: Any) -> None:
         """Generate report"""
         pass
-

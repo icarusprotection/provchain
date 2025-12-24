@@ -45,7 +45,8 @@ class SystemCallTracer:
 
         # Check for process spawning
         if trace_data["process_spawns"]:
-            findings.append(f"Process spawning detected: {len(trace_data['process_spawns'])} spawns")
+            findings.append(
+                f"Process spawning detected: {len(trace_data['process_spawns'])} spawns"
+            )
 
         return findings
-

@@ -2,7 +2,12 @@
 
 from datetime import datetime, timedelta, timezone
 
-from provchain.data.models import AnalysisResult, Finding, MaintainerInfo, PackageMetadata, RiskLevel
+from provchain.data.models import (
+    AnalysisResult,
+    Finding,
+    PackageMetadata,
+    RiskLevel,
+)
 from provchain.integrations.github import GitHubClient
 from provchain.interrogator.analyzers.base import BaseAnalyzer
 
@@ -55,7 +60,7 @@ class MaintainerAnalyzer(BaseAnalyzer):
                         Finding(
                             id="maintainer_young_account",
                             title=f"Young maintainer account: {maintainer.username}",
-                            description=f"Maintainer account is less than 1 year old",
+                            description="Maintainer account is less than 1 year old",
                             severity=RiskLevel.LOW,
                             evidence=[f"Account created: {maintainer.account_created.isoformat()}"],
                         )
@@ -96,7 +101,9 @@ class MaintainerAnalyzer(BaseAnalyzer):
                     user_data = github.get_user(username)
 
                     # Check account age
-                    created_at = datetime.fromisoformat(user_data["created_at"].replace("Z", "+00:00"))
+                    created_at = datetime.fromisoformat(
+                        user_data["created_at"].replace("Z", "+00:00")
+                    )
                     account_age = datetime.now(timezone.utc) - created_at
                     if account_age < timedelta(days=90):
                         risk_score += 2.0
@@ -157,4 +164,3 @@ class MaintainerAnalyzer(BaseAnalyzer):
             findings=findings,
             raw_data={"maintainer_count": len(package_metadata.maintainers)},
         )
-

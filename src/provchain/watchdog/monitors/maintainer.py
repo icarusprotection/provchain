@@ -1,11 +1,10 @@
 """Maintainer change monitor"""
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from provchain.data.db import Database
 from provchain.data.models import Alert, PackageIdentifier, RiskLevel
-from provchain.integrations.github import GitHubClient
 from provchain.integrations.pypi import PyPIClient
 
 
@@ -49,7 +48,9 @@ class MaintainerMonitor:
                     alerts.append(
                         Alert(
                             id=str(uuid.uuid4()),
-                            package=PackageIdentifier(ecosystem="pypi", name=package_name, version=""),
+                            package=PackageIdentifier(
+                                ecosystem="pypi", name=package_name, version=""
+                            ),
                             alert_type="maintainer_added",
                             severity=RiskLevel.HIGH,
                             title=f"New maintainer(s) added to {package_name}",
@@ -65,7 +66,9 @@ class MaintainerMonitor:
                     alerts.append(
                         Alert(
                             id=str(uuid.uuid4()),
-                            package=PackageIdentifier(ecosystem="pypi", name=package_name, version=""),
+                            package=PackageIdentifier(
+                                ecosystem="pypi", name=package_name, version=""
+                            ),
                             alert_type="maintainer_removed",
                             severity=RiskLevel.MEDIUM,
                             title=f"Maintainer(s) removed from {package_name}",
@@ -78,9 +81,8 @@ class MaintainerMonitor:
             # Store current snapshot
             self.db.store_maintainer_snapshot("pypi", package_name, current_maintainers)
 
-        except Exception as e:
+        except Exception:
             # Log error
             pass
 
         return alerts
-

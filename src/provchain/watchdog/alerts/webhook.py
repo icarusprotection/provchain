@@ -1,8 +1,5 @@
 """Webhook alert delivery"""
 
-import json
-from typing import Any
-
 import httpx
 
 from provchain.data.models import Alert
@@ -33,4 +30,3 @@ class WebhookAlerter:
         except Exception:
             # Log error
             pass
-

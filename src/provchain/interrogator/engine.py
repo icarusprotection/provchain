@@ -1,12 +1,11 @@
 """Interrogator engine: Main analysis orchestrator"""
 
 import concurrent.futures
-from typing import Any
 
-from provchain.data.models import PackageIdentifier, PackageMetadata, VetReport
-from provchain.integrations.pypi import PyPIClient
 from provchain.data.cache import Cache
 from provchain.data.db import Database
+from provchain.data.models import PackageIdentifier, PackageMetadata, VetReport
+from provchain.integrations.pypi import PyPIClient
 from provchain.interrogator.analyzers.attack import AttackAnalyzer
 from provchain.interrogator.analyzers.base import BaseAnalyzer
 from provchain.interrogator.analyzers.behavior import BehaviorAnalyzer
@@ -83,7 +82,8 @@ class InterrogatorEngine:
         if package_metadata is None:
             with PyPIClient() as pypi:
                 package_metadata = pypi.get_package_info(
-                    package_identifier.name, package_identifier.version if package_identifier.version != "latest" else None
+                    package_identifier.name,
+                    package_identifier.version if package_identifier.version != "latest" else None,
                 )
 
         # Get analyzers
@@ -105,9 +105,11 @@ class InterrogatorEngine:
                     # Log error and continue with other analyzers
                     analyzer = futures[future]
                     import logging
+
                     logger = logging.getLogger(__name__)
                     logger.warning(f"Analyzer {analyzer.name} failed: {e}")
                     from provchain.data.models import AnalysisResult
+
                     results.append(
                         AnalysisResult(
                             analyzer=analyzer.name,
@@ -136,4 +138,3 @@ class InterrogatorEngine:
         report.recommendations = self.risk_scorer.generate_recommendations(report)
 
         return report
-

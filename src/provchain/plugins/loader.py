@@ -4,7 +4,6 @@ import importlib
 import importlib.util
 import inspect
 from pathlib import Path
-from typing import Any
 
 from provchain.plugins.interface import AnalyzerPlugin, ReporterPlugin
 
@@ -52,4 +51,3 @@ class PluginLoader:
     def get_reporter(self, name: str) -> ReporterPlugin | None:
         """Get reporter plugin by name"""
         return self.reporters.get(name)
-

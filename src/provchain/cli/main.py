@@ -1,11 +1,12 @@
 """Main CLI entry point"""
 
 import sys
+
 import typer
 from rich.console import Console
 
 from provchain import __version__
-from provchain.cli.commands import attack, config, sbom, vet, verify, vuln, watch
+from provchain.cli.commands import attack, config, sbom, verify, vet, vuln, watch
 
 console = Console()
 
@@ -21,6 +22,7 @@ _app = typer.Typer(
 def main_callback() -> None:
     """ProvChain: Supply Chain Security Suite"""
     pass
+
 
 # Add command groups
 # Note: vet is a direct command function, not a group, so we register it directly
@@ -48,4 +50,3 @@ app = _app
 
 if __name__ == "__main__":
     main()
-

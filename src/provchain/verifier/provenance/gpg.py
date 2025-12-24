@@ -8,10 +8,12 @@ from typing import Any
 class GPGVerifier:
     """GPG signature verification"""
 
-    def verify(self, artifact_path: Path | str, signature_path: Path | str | None = None) -> dict[str, Any]:
+    def verify(
+        self, artifact_path: Path | str, signature_path: Path | str | None = None
+    ) -> dict[str, Any]:
         """Verify GPG signature"""
         artifact_path = Path(artifact_path)
-        
+
         # Find signature file
         if signature_path is None:
             # Try common signature file names
@@ -20,20 +22,20 @@ class GPGVerifier:
                 if candidate.exists():
                     signature_path = candidate
                     break
-        
+
         if signature_path is None:
             # Try .asc file with same base name
             asc_path = artifact_path.with_suffix(".asc")
             if asc_path.exists():
                 signature_path = asc_path
-        
+
         if signature_path is None or not Path(signature_path).exists():
             return {
                 "available": False,
                 "status": "no_signature",
                 "note": "No GPG signature file found",
             }
-        
+
         # Check if GPG is available
         try:
             result = subprocess.run(
@@ -53,7 +55,7 @@ class GPGVerifier:
                 "status": "gpg_not_installed",
                 "note": "GPG is not installed",
             }
-        
+
         # Verify signature
         try:
             result = subprocess.run(
@@ -61,7 +63,7 @@ class GPGVerifier:
                 capture_output=True,
                 timeout=30,
             )
-            
+
             if result.returncode == 0:
                 return {
                     "available": True,
@@ -91,4 +93,3 @@ class GPGVerifier:
                 "status": "error",
                 "error": str(e),
             }
-

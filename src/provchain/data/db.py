@@ -1,31 +1,29 @@
 """Database layer for ProvChain"""
 
 import json
-import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy import (
-    JSON,
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     create_engine,
-    Index,
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 from provchain.data.models import (
+    SBOM,
     Alert,
     AttackHistory,
     AttackPattern,
     PackageIdentifier,
     RiskLevel,
-    SBOM,
     VetReport,
 )
 
@@ -101,9 +99,7 @@ class AlertRecord(Base):
     acknowledged_at = Column(DateTime, nullable=True)
     resolved_at = Column(DateTime, nullable=True)
 
-    __table_args__ = (
-        Index("idx_alerts_unresolved", "resolved_at"),
-    )
+    __table_args__ = (Index("idx_alerts_unresolved", "resolved_at"),)
 
 
 class MaintainerSnapshot(Base):
@@ -234,9 +230,7 @@ class Database:
         finally:
             session.close()
 
-    def get_analysis(
-        self, ecosystem: str, name: str, version: str
-    ) -> VetReport | None:
+    def get_analysis(self, ecosystem: str, name: str, version: str) -> VetReport | None:
         """Retrieve package analysis result"""
         session = self.Session()
         try:
@@ -347,9 +341,7 @@ class Database:
                     "title": alert_record.title,
                     "description": alert_record.description,
                     "evidence": (
-                        json.loads(alert_record.evidence_json)
-                        if alert_record.evidence_json
-                        else {}
+                        json.loads(alert_record.evidence_json) if alert_record.evidence_json else {}
                     ),
                 }
                 result.append(Alert(**alert_dict))
@@ -408,7 +400,9 @@ class Database:
                 "severity": pattern.severity.value,
                 "indicators_json": json.dumps(pattern.indicators) if pattern.indicators else None,
                 "examples_json": json.dumps(pattern.examples) if pattern.examples else None,
-                "detection_rules_json": json.dumps(pattern.detection_rules) if pattern.detection_rules else None,
+                "detection_rules_json": json.dumps(pattern.detection_rules)
+                if pattern.detection_rules
+                else None,
                 "created_at": datetime.now(timezone.utc),
                 "updated_at": datetime.now(timezone.utc),
             }
@@ -441,9 +435,15 @@ class Database:
                     description=pattern_record.description,
                     attack_type=pattern_record.attack_type,
                     severity=RiskLevel(pattern_record.severity),
-                    indicators=json.loads(pattern_record.indicators_json) if pattern_record.indicators_json else [],
-                    examples=json.loads(pattern_record.examples_json) if pattern_record.examples_json else [],
-                    detection_rules=json.loads(pattern_record.detection_rules_json) if pattern_record.detection_rules_json else {},
+                    indicators=json.loads(pattern_record.indicators_json)
+                    if pattern_record.indicators_json
+                    else [],
+                    examples=json.loads(pattern_record.examples_json)
+                    if pattern_record.examples_json
+                    else [],
+                    detection_rules=json.loads(pattern_record.detection_rules_json)
+                    if pattern_record.detection_rules_json
+                    else {},
                 )
             return None
         finally:
@@ -453,7 +453,9 @@ class Database:
         """Get all attack patterns of a specific type"""
         session = self.Session()
         try:
-            pattern_records = session.query(AttackPatternRecord).filter_by(attack_type=attack_type).all()
+            pattern_records = (
+                session.query(AttackPatternRecord).filter_by(attack_type=attack_type).all()
+            )
             patterns = []
             for record in pattern_records:
                 patterns.append(
@@ -463,9 +465,13 @@ class Database:
                         description=record.description,
                         attack_type=record.attack_type,
                         severity=RiskLevel(record.severity),
-                        indicators=json.loads(record.indicators_json) if record.indicators_json else [],
+                        indicators=json.loads(record.indicators_json)
+                        if record.indicators_json
+                        else [],
                         examples=json.loads(record.examples_json) if record.examples_json else [],
-                        detection_rules=json.loads(record.detection_rules_json) if record.detection_rules_json else {},
+                        detection_rules=json.loads(record.detection_rules_json)
+                        if record.detection_rules_json
+                        else {},
                     )
                 )
             return patterns
@@ -557,4 +563,3 @@ class Database:
                     if indicator.lower() in str(evidence).lower():
                         return pattern
         return None
-

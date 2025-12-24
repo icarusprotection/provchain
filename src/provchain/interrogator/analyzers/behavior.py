@@ -37,23 +37,23 @@ class BehaviorAnalyzer(BaseAnalyzer):
             try:
                 package_name = package_metadata.identifier.name
                 version = package_metadata.identifier.version
-                
+
                 with SandboxContainer() as container:
                     if container.docker_available:
                         # Install package in sandbox
                         try:
                             container.install_package(package_name, version)
-                            
+
                             # Run package import with tracing
                             trace_output = container.run_with_tracing(
                                 ["python", "-c", f"import {package_name}"]
                             )
-                            
+
                             # Analyze trace
                             tracer = SystemCallTracer()
                             trace_data = tracer.parse_trace(trace_output)
                             behavior_findings = tracer.analyze_behavior(trace_data)
-                            
+
                             # Convert to findings
                             if trace_data["network_calls"]:
                                 risk_score += 3.0
@@ -63,11 +63,13 @@ class BehaviorAnalyzer(BaseAnalyzer):
                                         title="Network activity detected during import",
                                         description=f"Package attempted {len(trace_data['network_calls'])} network operations during import",
                                         severity=RiskLevel.HIGH,
-                                        evidence=trace_data["network_calls"][:5],  # First 5 as evidence
+                                        evidence=trace_data["network_calls"][
+                                            :5
+                                        ],  # First 5 as evidence
                                         remediation="Review network activity - package may be exfiltrating data",
                                     )
                                 )
-                            
+
                             if trace_data["process_spawns"]:
                                 risk_score += 4.0
                                 findings.append(
@@ -80,7 +82,7 @@ class BehaviorAnalyzer(BaseAnalyzer):
                                         remediation="Review process spawning - package may be executing arbitrary code",
                                     )
                                 )
-                            
+
                             if behavior_findings:
                                 for finding_desc in behavior_findings:
                                     if "Suspicious file access" in finding_desc:
@@ -95,7 +97,7 @@ class BehaviorAnalyzer(BaseAnalyzer):
                                                 remediation="Review file system access patterns",
                                             )
                                         )
-                            
+
                             confidence = 0.8 if findings else 0.9
                         except Exception as e:
                             findings.append(
@@ -138,4 +140,3 @@ class BehaviorAnalyzer(BaseAnalyzer):
             findings=findings,
             raw_data={"docker_available": self.docker_available},
         )
-

@@ -1,6 +1,5 @@
 """CVSS v3.1 scoring calculator"""
 
-import re
 from typing import Any
 
 from provchain.data.models import CVSSScore, RiskLevel
@@ -139,7 +138,9 @@ class CVSSCalculator:
             impact = 6.42 * iss
 
         # Calculate Exploitability
-        exploitability = 8.22 * attack_vector * attack_complexity * privileges_required * user_interaction
+        exploitability = (
+            8.22 * attack_vector * attack_complexity * privileges_required * user_interaction
+        )
 
         # Calculate Base Score
         if impact <= 0:
@@ -291,4 +292,3 @@ class CVSSCalculator:
                     pass
 
         return None
-

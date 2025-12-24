@@ -2,17 +2,16 @@
 
 import concurrent.futures
 import sys
-from pathlib import Path
 
 import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+from provchain.cli.formatters import format_report
 from provchain.core.package import parse_package_spec, parse_requirements_file
 from provchain.data.cache import Cache
 from provchain.data.db import Database
 from provchain.interrogator.engine import InterrogatorEngine
-from provchain.cli.formatters import format_report
 
 app = typer.Typer(name="vet", help="Analyze package before installation")
 console = Console()
@@ -20,19 +19,33 @@ console = Console()
 
 @app.command()
 def vet(
-    package: str = typer.Argument(..., help="Package specifier (e.g., 'requests' or 'requests==2.31.0')"),
+    package: str = typer.Argument(
+        ..., help="Package specifier (e.g., 'requests' or 'requests==2.31.0')"
+    ),
     requirements: str = typer.Option(None, "-r", "--requirements", help="Requirements file path"),
-    deep: bool = typer.Option(False, "--deep", help="Include behavioral analysis (requires Docker)"),
-    format: str = typer.Option("table", "--format", "-f", help="Output format: table, json, sarif, markdown"),
-    ci: bool = typer.Option(False, "--ci", help="CI mode: exit with non-zero code if risk exceeds threshold"),
-    threshold: str = typer.Option("medium", "--threshold", help="Risk threshold: low, medium, high, critical"),
-    parallel: int = typer.Option(1, "--parallel", "-j", "--jobs", help="Number of parallel jobs for analyzing multiple packages"),
+    deep: bool = typer.Option(
+        False, "--deep", help="Include behavioral analysis (requires Docker)"
+    ),
+    format: str = typer.Option(
+        "table", "--format", "-f", help="Output format: table, json, sarif, markdown"
+    ),
+    ci: bool = typer.Option(
+        False, "--ci", help="CI mode: exit with non-zero code if risk exceeds threshold"
+    ),
+    threshold: str = typer.Option(
+        "medium", "--threshold", help="Risk threshold: low, medium, high, critical"
+    ),
+    parallel: int = typer.Option(
+        1,
+        "--parallel",
+        "-j",
+        "--jobs",
+        help="Number of parallel jobs for analyzing multiple packages",
+    ),
 ) -> None:
     """Analyze package for security risks before installation"""
     # Initialize database and cache
     db = Database()
-    cache = Cache(db)
-
     # Initialize database and cache for engine
     engine_db = Database()
     engine_cache = Cache(engine_db)
@@ -59,7 +72,7 @@ def vet(
 
     # Analyze packages
     reports = []
-    
+
     def analyze_single_package(pkg_id):
         """Analyze a single package"""
         try:
@@ -75,7 +88,8 @@ def vet(
             # Package not found or invalid version
             error_msg = str(e)
             console.print(f"[red]Error analyzing {pkg_id.name}: {error_msg}[/red]")
-            from provchain.data.models import VetReport, RiskLevel
+            from provchain.data.models import RiskLevel, VetReport
+
             return VetReport(
                 package=pkg_id,
                 overall_risk=RiskLevel.UNKNOWN,
@@ -93,7 +107,8 @@ def vet(
             else:
                 console.print(f"[red]Error analyzing {pkg_id.name}: {str(e)}[/red]")
             # Return a minimal error report
-            from provchain.data.models import VetReport, RiskLevel
+            from provchain.data.models import RiskLevel, VetReport
+
             return VetReport(
                 package=pkg_id,
                 overall_risk=RiskLevel.UNKNOWN,
@@ -102,7 +117,7 @@ def vet(
                 results=[],
                 recommendations=[f"Analysis failed: {str(e)}"],
             )
-    
+
     # Use parallel execution if multiple packages and parallel > 1
     if len(packages_to_analyze) > 1 and parallel > 1:
         with Progress(
@@ -110,11 +125,16 @@ def vet(
             TextColumn("[progress.description]{task.description}"),
             console=console,
         ) as progress:
-            task = progress.add_task(f"Analyzing {len(packages_to_analyze)} packages...", total=len(packages_to_analyze))
-            
+            task = progress.add_task(
+                f"Analyzing {len(packages_to_analyze)} packages...", total=len(packages_to_analyze)
+            )
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=parallel) as executor:
-                futures = {executor.submit(analyze_single_package, pkg_id): pkg_id for pkg_id in packages_to_analyze}
-                
+                futures = {
+                    executor.submit(analyze_single_package, pkg_id): pkg_id
+                    for pkg_id in packages_to_analyze
+                }
+
                 for future in concurrent.futures.as_completed(futures):
                     pkg_id = futures[future]
                     try:
@@ -144,4 +164,3 @@ def vet(
                 sys.exit(1)
 
         sys.exit(0)
-

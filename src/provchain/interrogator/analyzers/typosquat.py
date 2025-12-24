@@ -2,7 +2,6 @@
 
 import difflib
 import unicodedata
-from typing import Any
 
 from provchain.data.models import AnalysisResult, Finding, PackageMetadata, RiskLevel
 from provchain.interrogator.analyzers.base import BaseAnalyzer
@@ -184,7 +183,10 @@ class TyposquatAnalyzer(BaseAnalyzer):
                         title=f"Similar to popular package '{popular}'",
                         description=f"Package name '{package_metadata.identifier.name}' is very similar to popular package '{popular}' (Levenshtein distance: {distance})",
                         severity=RiskLevel.HIGH if distance == 1 else RiskLevel.MEDIUM,
-                        evidence=[f"Levenshtein distance: {distance}", f"Popular package: {popular}"],
+                        evidence=[
+                            f"Levenshtein distance: {distance}",
+                            f"Popular package: {popular}",
+                        ],
                         remediation="Verify this is the intended package and not a typosquatting attack",
                     )
                 )
@@ -288,4 +290,3 @@ class TyposquatAnalyzer(BaseAnalyzer):
             findings=findings,
             raw_data={"checked_against": len(self.popular_packages)},
         )
-

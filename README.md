@@ -3,7 +3,7 @@
 [![CI](https://github.com/ipf/provchain/workflows/CI/badge.svg)](https://github.com/ipf/provchain/actions/workflows/ci.yml)
 [![Security](https://github.com/ipf/provchain/workflows/Security/badge.svg)](https://github.com/ipf/provchain/actions/workflows/security.yml)
 
-**ProvChain** is an open-source Python supply chain security platform that provides behavioral analysis, provenance verification, and continuous monitoring of software dependencies. Unlike existing tools that focus solely on known CVEs, ProvChain answers the harder question: "Should I trust this package at all?"
+**ProvChain** is an open-source Python supply chain security platform created by Icarus Protection that provides behavioral analysis, provenance verification, and continuous monitoring of software dependencies. Unlike existing tools that focus solely on known CVEs, ProvChain answers the harder question: "Should I trust this package at all?"
 
 ## Core Value Proposition
 
@@ -245,7 +245,7 @@ For detailed documentation, see:
 
 ## Links
 
-- [Documentation](https://provchain.readthedocs.io)
-- [GitHub Repository](https://github.com/ipf/provchain)
-- [Issue Tracker](https://github.com/ipf/provchain/issues)
+- [Documentation](https://icarusprotection.com)
+- [GitHub Repository](https://github.com/icarusprotection/provchain)
+- [Issue Tracker](https://github.com/icarusprotection/provchain/issues)
 

@@ -9,7 +9,12 @@ from provchain.utils.network import HTTPClient
 class GitLabClient:
     """GitLab API client (basic implementation)"""
 
-    def __init__(self, base_url: str = "https://gitlab.com", token: str | None = None, cache: Cache | None = None):
+    def __init__(
+        self,
+        base_url: str = "https://gitlab.com",
+        token: str | None = None,
+        cache: Cache | None = None,
+    ):
         headers = {}
         if token:
             headers["PRIVATE-TOKEN"] = token
@@ -36,6 +41,7 @@ class GitLabClient:
 
         if self.cache:
             from datetime import timedelta
+
             self.cache.set("gitlab", data, timedelta(hours=6), "project", project_path)
 
         return data
@@ -49,4 +55,3 @@ class GitLabClient:
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.close()
-

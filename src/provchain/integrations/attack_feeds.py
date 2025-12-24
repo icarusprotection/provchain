@@ -1,12 +1,10 @@
 """Attack data feeds from external sources"""
 
-from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from provchain.data.cache import Cache
 from provchain.data.db import Database
-from provchain.data.models import AttackHistory, AttackPattern, PackageIdentifier, RiskLevel
-from provchain.integrations.osv import OSVClient
+from provchain.data.models import AttackHistory, AttackPattern, RiskLevel
 from provchain.utils.network import HTTPClient
 
 
@@ -76,6 +74,7 @@ class AttackFeedFetcher:
             except Exception as e:
                 # Log error but continue processing other patterns
                 import logging
+
                 logger = logging.getLogger(__name__)
                 logger.warning(f"Failed to store attack pattern {pattern.id}: {e}")
                 continue
@@ -95,6 +94,7 @@ class AttackFeedFetcher:
             except Exception as e:
                 # Log error but continue processing other attacks
                 import logging
+
                 logger = logging.getLogger(__name__)
                 logger.warning(f"Failed to store attack history {attack.id}: {e}")
                 continue
@@ -168,4 +168,3 @@ class AttackFeedFetcher:
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.close()
-

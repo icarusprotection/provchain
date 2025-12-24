@@ -9,6 +9,7 @@ try:
 except ImportError:
     try:
         import tomli as tomllib  # Python 3.11+
+
         tomli = tomllib
     except ImportError:
         tomli = None
@@ -64,7 +65,7 @@ class Config:
             try:
                 with open(self.config_path, "rb") as f:
                     file_config = tomli.load(f)
-                    # Merge with defaults
+                    # Merge file config into defaults (file values take precedence)
                     self._merge_config(self.config, file_config)
             except Exception:
                 # File read failed, use defaults
@@ -116,7 +117,9 @@ class Config:
         # Validate general.threshold
         threshold = self.config.get("general", {}).get("threshold", "medium")
         if threshold not in ["low", "medium", "high", "critical"]:
-            errors.append(f"Invalid threshold value: {threshold}. Must be one of: low, medium, high, critical")
+            errors.append(
+                f"Invalid threshold value: {threshold}. Must be one of: low, medium, high, critical"
+            )
 
         # Validate general.analyzers
         analyzers = self.config.get("general", {}).get("analyzers", [])
@@ -126,7 +129,9 @@ class Config:
         else:
             for analyzer in analyzers:
                 if analyzer not in valid_analyzers:
-                    errors.append(f"Invalid analyzer: {analyzer}. Must be one of: {', '.join(valid_analyzers)}")
+                    errors.append(
+                        f"Invalid analyzer: {analyzer}. Must be one of: {', '.join(valid_analyzers)}"
+                    )
 
         # Validate general.cache_ttl
         cache_ttl = self.config.get("general", {}).get("cache_ttl", 24)
@@ -146,7 +151,9 @@ class Config:
         # Validate behavior.network_policy
         network_policy = self.config.get("behavior", {}).get("network_policy", "monitor")
         if network_policy not in ["allow", "deny", "monitor"]:
-            errors.append(f"Invalid network_policy: {network_policy}. Must be one of: allow, deny, monitor")
+            errors.append(
+                f"Invalid network_policy: {network_policy}. Must be one of: allow, deny, monitor"
+            )
 
         # Validate watchdog.check_interval
         check_interval = self.config.get("watchdog", {}).get("check_interval", 60)
@@ -156,7 +163,9 @@ class Config:
         # Validate output.format
         output_format = self.config.get("output", {}).get("format", "table")
         if output_format not in ["table", "json", "sarif", "markdown"]:
-            errors.append(f"Invalid output format: {output_format}. Must be one of: table, json, sarif, markdown")
+            errors.append(
+                f"Invalid output format: {output_format}. Must be one of: table, json, sarif, markdown"
+            )
 
         # Validate output.verbosity
         verbosity = self.config.get("output", {}).get("verbosity", "normal")
@@ -171,4 +180,3 @@ class Config:
         if errors:
             error_msg = "Configuration validation failed:\n" + "\n".join(f"  - {e}" for e in errors)
             raise ValueError(error_msg)
-

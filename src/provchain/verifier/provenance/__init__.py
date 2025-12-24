@@ -1,2 +1,1 @@
 """Provenance verification methods"""
-

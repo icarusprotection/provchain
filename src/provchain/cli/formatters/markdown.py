@@ -11,7 +11,7 @@ def format_markdown(report: VetReport, console: Console) -> None:
 
 ## Package: {report.package.name} @ {report.package.version}
 
-**Overall Risk:** {report.overall_risk.value.upper()} (Score: {report.risk_score:.1f}/10, Confidence: {report.confidence*100:.0f}%)
+**Overall Risk:** {report.overall_risk.value.upper()} (Score: {report.risk_score:.1f}/10, Confidence: {report.confidence * 100:.0f}%)
 
 ## Analysis Results
 
@@ -20,7 +20,7 @@ def format_markdown(report: VetReport, console: Console) -> None:
     for result in report.results:
         output += f"### {result.analyzer}\n\n"
         output += f"- **Risk Score:** {result.risk_score:.1f}/10\n"
-        output += f"- **Confidence:** {result.confidence*100:.0f}%\n\n"
+        output += f"- **Confidence:** {result.confidence * 100:.0f}%\n\n"
 
         if result.findings:
             output += "**Findings:**\n\n"
@@ -37,4 +37,3 @@ def format_markdown(report: VetReport, console: Console) -> None:
             output += f"- {rec}\n"
 
     console.print(output)
-

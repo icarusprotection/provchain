@@ -49,4 +49,3 @@ class RepositoryMonitor:
             pass
 
         return alerts
-

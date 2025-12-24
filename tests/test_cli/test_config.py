@@ -67,7 +67,7 @@ def test_config_set_string_value(runner, tmp_path):
     config_path.parent.mkdir(parents=True, exist_ok=True)
     
     # Initialize config first
-    with patch('pathlib.Path.home', return_value=tmp_path):
+    with patch('provchain.cli.commands.config.Path.home', return_value=tmp_path):
         runner.invoke(app, ["init"])
         
         # Set a string value
@@ -77,7 +77,7 @@ def test_config_set_string_value(runner, tmp_path):
         assert "Configuration updated" in result.stdout
         assert "general.threshold = high" in result.stdout or "high" in result.stdout
         
-        # Verify it was saved
+        # Verify it was saved - reload config
         config = Config(config_path=config_path)
         assert config.get("general", "threshold") == "high"
 
@@ -87,7 +87,7 @@ def test_config_set_integer_value(runner, tmp_path):
     config_path = tmp_path / ".provchain" / "config.toml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     
-    with patch('pathlib.Path.home', return_value=tmp_path):
+    with patch('provchain.cli.commands.config.Path.home', return_value=tmp_path):
         runner.invoke(app, ["init"])
         
         result = runner.invoke(app, ["set", "behavior.timeout", "120"])
@@ -95,6 +95,7 @@ def test_config_set_integer_value(runner, tmp_path):
         assert result.exit_code == 0
         assert "Configuration updated" in result.stdout
         
+        # Reload config to verify it was saved
         config = Config(config_path=config_path)
         assert config.get("behavior", "timeout") == 120
 
@@ -104,7 +105,7 @@ def test_config_set_boolean_value(runner, tmp_path):
     config_path = tmp_path / ".provchain" / "config.toml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     
-    with patch('pathlib.Path.home', return_value=tmp_path):
+    with patch('provchain.cli.commands.config.Path.home', return_value=tmp_path):
         runner.invoke(app, ["init"])
         
         result = runner.invoke(app, ["set", "behavior.enabled", "false"])
@@ -112,6 +113,7 @@ def test_config_set_boolean_value(runner, tmp_path):
         assert result.exit_code == 0
         assert "Configuration updated" in result.stdout
         
+        # Reload config to verify it was saved
         config = Config(config_path=config_path)
         assert config.get("behavior", "enabled") is False
 
@@ -121,7 +123,7 @@ def test_config_set_list_value(runner, tmp_path):
     config_path = tmp_path / ".provchain" / "config.toml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     
-    with patch('pathlib.Path.home', return_value=tmp_path):
+    with patch('provchain.cli.commands.config.Path.home', return_value=tmp_path):
         runner.invoke(app, ["init"])
         
         # Test JSON list format
@@ -138,7 +140,7 @@ def test_config_set_list_value(runner, tmp_path):
 
 def test_config_set_invalid_section(runner, tmp_path):
     """Test setting value with invalid section"""
-    with patch('pathlib.Path.home', return_value=tmp_path):
+    with patch('provchain.cli.commands.config.Path.home', return_value=tmp_path):
         result = runner.invoke(app, ["set", "invalid_section.key", "value"])
         
         assert result.exit_code == 1
@@ -150,7 +152,7 @@ def test_config_set_invalid_key(runner, tmp_path):
     config_path = tmp_path / ".provchain" / "config.toml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     
-    with patch('pathlib.Path.home', return_value=tmp_path):
+    with patch('provchain.cli.commands.config.Path.home', return_value=tmp_path):
         runner.invoke(app, ["init"])
         
         result = runner.invoke(app, ["set", "general.invalid_key", "value"])
@@ -161,7 +163,7 @@ def test_config_set_invalid_key(runner, tmp_path):
 
 def test_config_set_invalid_format(runner, tmp_path):
     """Test setting value with invalid key format"""
-    with patch('pathlib.Path.home', return_value=tmp_path):
+    with patch('provchain.cli.commands.config.Path.home', return_value=tmp_path):
         result = runner.invoke(app, ["set", "nokey", "value"])
         
         assert result.exit_code == 1
@@ -173,7 +175,7 @@ def test_config_set_invalid_boolean(runner, tmp_path):
     config_path = tmp_path / ".provchain" / "config.toml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     
-    with patch('pathlib.Path.home', return_value=tmp_path):
+    with patch('provchain.cli.commands.config.Path.home', return_value=tmp_path):
         runner.invoke(app, ["init"])
         
         result = runner.invoke(app, ["set", "behavior.enabled", "maybe"])
@@ -187,7 +189,7 @@ def test_config_set_invalid_integer(runner, tmp_path):
     config_path = tmp_path / ".provchain" / "config.toml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     
-    with patch('pathlib.Path.home', return_value=tmp_path):
+    with patch('provchain.cli.commands.config.Path.home', return_value=tmp_path):
         runner.invoke(app, ["init"])
         
         result = runner.invoke(app, ["set", "behavior.timeout", "not_a_number"])

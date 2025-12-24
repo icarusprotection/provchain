@@ -6,4 +6,3 @@ from provchain.integrations.osv import OSVClient
 from provchain.integrations.pypi import PyPIClient
 
 __all__ = ["GitHubClient", "GitLabClient", "OSVClient", "PyPIClient"]
-

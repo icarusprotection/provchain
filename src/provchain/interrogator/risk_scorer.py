@@ -1,7 +1,6 @@
 """Risk scoring algorithm"""
 
 from dataclasses import dataclass
-from typing import Any
 
 from provchain.data.models import AnalysisResult, RiskLevel, VetReport
 
@@ -108,4 +107,3 @@ class RiskScorer:
                     recommendations.append(f"{result.analyzer}: {finding.remediation}")
 
         return list(set(recommendations))  # Remove duplicates
-

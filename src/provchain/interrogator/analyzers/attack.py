@@ -1,10 +1,9 @@
 """Supply chain attack detection analyzer"""
 
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Any
+from datetime import datetime, timezone
 
-from packaging.version import Version, InvalidVersion
+from packaging.version import InvalidVersion, Version
 
 from provchain.data.cache import Cache
 from provchain.data.db import Database
@@ -12,11 +11,9 @@ from provchain.data.models import (
     AnalysisResult,
     AttackHistory,
     Finding,
-    PackageIdentifier,
     PackageMetadata,
     RiskLevel,
 )
-from provchain.integrations.attack_feeds import AttackFeedFetcher
 from provchain.integrations.pypi import PyPIClient
 from provchain.interrogator.analyzers.base import BaseAnalyzer
 from provchain.interrogator.analyzers.typosquat import TyposquatAnalyzer
@@ -133,7 +130,9 @@ class AttackAnalyzer(BaseAnalyzer):
 
         # 5. Check historical attack patterns
         if self.db:
-            historical_attacks = self.db.get_attack_history(package.ecosystem, package.name, limit=10)
+            historical_attacks = self.db.get_attack_history(
+                package.ecosystem, package.name, limit=10
+            )
             if historical_attacks:
                 for hist_attack in historical_attacks:
                     if not hist_attack.resolved:
@@ -143,7 +142,10 @@ class AttackAnalyzer(BaseAnalyzer):
                                 title=f"Historical attack detected: {hist_attack.attack_type}",
                                 description=hist_attack.description,
                                 severity=hist_attack.severity,
-                                evidence=[f"Detected: {hist_attack.detected_at}", f"Source: {hist_attack.source}"],
+                                evidence=[
+                                    f"Detected: {hist_attack.detected_at}",
+                                    f"Source: {hist_attack.source}",
+                                ],
                                 remediation="Review historical attack patterns for this package",
                             )
                         )
@@ -157,6 +159,7 @@ class AttackAnalyzer(BaseAnalyzer):
                 except Exception as e:
                     # Log error but continue processing
                     import logging
+
                     logger = logging.getLogger(__name__)
                     logger.warning(f"Failed to store attack history {attack.id}: {e}")
                     continue
@@ -194,7 +197,9 @@ class AttackAnalyzer(BaseAnalyzer):
         previous_snapshot = self.db.get_latest_maintainer_snapshot(package.ecosystem, package.name)
 
         if previous_snapshot:
-            previous_maintainers = {m.get("username", "") for m in previous_snapshot if m.get("username")}
+            previous_maintainers = {
+                m.get("username", "") for m in previous_snapshot if m.get("username")
+            }
 
             # Check for maintainer changes
             if current_maintainers != previous_maintainers:
@@ -337,9 +342,9 @@ class AttackAnalyzer(BaseAnalyzer):
         except Exception as e:
             # Log error for debugging but continue gracefully
             import logging
+
             logger = logging.getLogger(__name__)
             logger.warning(f"Error detecting malicious update for {package.name}: {e}")
             # Graceful degradation - return empty findings
 
         return findings
-

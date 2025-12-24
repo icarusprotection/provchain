@@ -6,7 +6,6 @@ import typer
 from rich.console import Console
 
 from provchain.core.sbom import (
-    export_sbom_cyclonedx,
     generate_sbom_from_requirements,
     load_sbom_from_file,
     save_sbom_to_file,
@@ -56,4 +55,3 @@ def import_sbom(
     # Store in database
     db = Database()
     db.store_sbom(sbom, str(sbom_path))
-
