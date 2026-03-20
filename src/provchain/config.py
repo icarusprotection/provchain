@@ -8,7 +8,7 @@ try:
     import tomllib as tomli  # type: ignore[import-not-found]  # Python 3.11+ built-in
 except ImportError:
     try:
-        import tomli  # Backport for < 3.11
+        import tomli  # type: ignore[import-not-found,unused-ignore]  # Backport for < 3.11
     except ImportError:
         tomli = None  # type: ignore[assignment,unused-ignore]
 

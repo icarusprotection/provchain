@@ -129,7 +129,7 @@ class InstallHookAnalyzer(BaseAnalyzer):
             import tomllib as tomli  # type: ignore[import-not-found]  # Python 3.11+
         except ImportError:
             try:
-                import tomli  # Backport for < 3.11
+                import tomli  # type: ignore[import-not-found,unused-ignore]  # Backport for < 3.11
             except ImportError:
                 # No TOML parser available, skip
                 return findings

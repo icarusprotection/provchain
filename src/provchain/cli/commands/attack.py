@@ -161,9 +161,11 @@ def _display_attack_table(result, detailed: bool = False) -> None:
         total = sum(counts.values())
         max_severity = max(
             (s for s, c in counts.items() if c > 0),
-            key=lambda s: ["low", "medium", "high", "critical"].index(s)
-            if s in ["low", "medium", "high", "critical"]
-            else -1,
+            key=lambda s: (
+                ["low", "medium", "high", "critical"].index(s)
+                if s in ["low", "medium", "high", "critical"]
+                else -1
+            ),
             default="low",
         )
         severity_color = {
