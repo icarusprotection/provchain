@@ -126,10 +126,13 @@ class InstallHookAnalyzer(BaseAnalyzer):
         findings: list[Finding] = []
 
         try:
-            import tomli
+            import tomllib as tomli  # type: ignore[import-not-found]  # Python 3.11+
         except ImportError:
-            # tomli not available, skip
-            return findings
+            try:
+                import tomli  # Backport for < 3.11
+            except ImportError:
+                # No TOML parser available, skip
+                return findings
 
         try:
             with open(file_path, "rb") as f:

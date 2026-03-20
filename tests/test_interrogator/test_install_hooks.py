@@ -326,23 +326,27 @@ build-backend = "setuptools.build_meta"
         
         # Remove tomli from sys.modules to force ImportError
         tomli_backup = sys.modules.pop('tomli', None)
+        tomllib_backup = sys.modules.pop('tomllib', None)
         try:
             # Patch the module to raise ImportError when imported
+            original_import = __import__
             def raise_import_error(name, *args, **kwargs):
-                if name == 'tomli' or name.startswith('tomli.'):
-                    raise ImportError("No module named 'tomli'")
-                return __import__(name, *args, **kwargs)
-            
+                if name in ('tomli', 'tomllib') or name.startswith('tomli.'):
+                    raise ImportError(f"No module named '{name}'")
+                return original_import(name, *args, **kwargs)
+
             with patch('builtins.__import__', side_effect=raise_import_error):
-                # Should handle ImportError gracefully (line 137-139)
+                # Should handle ImportError gracefully
                 findings = analyzer.analyze_pyproject_toml(test_file)
                 assert isinstance(findings, list)
-                # Should return empty findings when tomli is not available
+                # Should return empty findings when no TOML parser is available
                 assert len(findings) == 0
         finally:
-            # Restore tomli if it was there
+            # Restore modules if they were there
             if tomli_backup is not None:
                 sys.modules['tomli'] = tomli_backup
+            if tomllib_backup is not None:
+                sys.modules['tomllib'] = tomllib_backup
 
     def test_analyze_pyproject_toml_file_error(self, tmp_path):
         """Test analyzing pyproject.toml when file read fails"""

@@ -5,14 +5,12 @@ from pathlib import Path
 from typing import Any
 
 try:
-    import tomli
+    import tomllib as tomli  # type: ignore[import-not-found]  # Python 3.11+ built-in
 except ImportError:
     try:
-        import tomli as tomllib  # Python 3.11+
-
-        tomli = tomllib
+        import tomli  # Backport for < 3.11
     except ImportError:
-        tomli = None  # type: ignore[assignment]
+        tomli = None  # type: ignore[assignment,unused-ignore]
 
 try:
     import tomli_w
