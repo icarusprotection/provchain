@@ -52,10 +52,11 @@ async def test_watchdog_engine_check_sbom(sample_sbom, temp_db):
     
     # Mock monitors to return empty alerts
     engine.maintainer_monitor.check = AsyncMock(return_value=[])
+    engine.release_monitor.check = AsyncMock(return_value=[])
     engine.cve_monitor.check = AsyncMock(return_value=[])
-    
+
     alerts = await engine.check_sbom(sample_sbom)
-    
+
     assert isinstance(alerts, list)
     assert len(alerts) == 0
     engine.maintainer_monitor.check.assert_called_once()
@@ -78,10 +79,11 @@ async def test_watchdog_engine_check_sbom_with_alerts(sample_sbom, temp_db):
     
     engine = WatchdogEngine(temp_db)
     engine.maintainer_monitor.check = AsyncMock(return_value=[test_alert])
+    engine.release_monitor.check = AsyncMock(return_value=[])
     engine.cve_monitor.check = AsyncMock(return_value=[])
-    
+
     alerts = await engine.check_sbom(sample_sbom)
-    
+
     assert len(alerts) == 1
     assert alerts[0].id == "test-alert-1"
     # Should be stored in database
@@ -103,11 +105,12 @@ async def test_watchdog_engine_run_daemon(sample_sbom, temp_db):
     """Test running watchdog daemon (short run)"""
     engine = WatchdogEngine(temp_db, check_interval_minutes=1)
     engine.maintainer_monitor.check = AsyncMock(return_value=[])
+    engine.release_monitor.check = AsyncMock(return_value=[])
     engine.cve_monitor.check = AsyncMock(return_value=[])
-    
+
     # Set a very short interval for testing
     engine.check_interval = timedelta(seconds=0.1)
-    
+
     # Run daemon for a very short time
     import asyncio
     
@@ -152,29 +155,29 @@ async def test_watchdog_engine_run_daemon_with_alerts(sample_sbom, temp_db):
     
     engine = WatchdogEngine(temp_db, check_interval_minutes=1)
     engine.maintainer_monitor.check = AsyncMock(return_value=[test_alert])
+    engine.release_monitor.check = AsyncMock(return_value=[])
     engine.cve_monitor.check = AsyncMock(return_value=[])
-    
+
     # Set a very short interval for testing
     engine.check_interval = timedelta(seconds=0.1)
     
-    # Mock print to capture output
-    with patch('builtins.print') as mock_print:
-        # Run daemon for a very short time
-        import asyncio
-        
-        async def stop_soon():
-            await asyncio.sleep(0.15)
-            engine.stop()
-        
+    # Engine now uses logger.warning instead of print
+    import asyncio
+
+    async def stop_soon():
+        await asyncio.sleep(0.15)
+        engine.stop()
+
+    with patch('provchain.watchdog.engine.logger') as mock_logger:
         # Start daemon and stop task
         daemon_task = asyncio.create_task(engine.run_daemon(sample_sbom))
         stop_task = asyncio.create_task(stop_soon())
-        
+
         # Wait for stop
         await stop_task
         # Give daemon a moment to check and exit
         await asyncio.sleep(0.1)
-        
+
         # Cancel daemon if still running
         if not daemon_task.done():
             daemon_task.cancel()
@@ -182,12 +185,11 @@ async def test_watchdog_engine_run_daemon_with_alerts(sample_sbom, temp_db):
                 await daemon_task
             except asyncio.CancelledError:
                 pass
-        
-        # Verify alert was printed (lines 68-70)
-        assert mock_print.called
-        # Check that alert message was printed
-        print_calls = [str(call) for call in mock_print.call_args_list]
-        assert any("Alert:" in str(call) for call in print_calls)
+
+        # Verify alert was logged
+        assert mock_logger.warning.called
+        warning_calls = [str(call) for call in mock_logger.warning.call_args_list]
+        assert any("Alert:" in str(call) for call in warning_calls)
 
 
 @pytest.mark.asyncio
@@ -204,24 +206,23 @@ async def test_watchdog_engine_run_daemon_exception_handling(sample_sbom, temp_d
     # Set a very short interval for testing
     engine.check_interval = timedelta(seconds=0.1)
     
-    # Mock print to capture error output
-    with patch('builtins.print') as mock_print:
-        # Run daemon for a very short time
-        import asyncio
-        
-        async def stop_soon():
-            await asyncio.sleep(0.2)  # Give time for exception to be caught
-            engine.stop()
-        
+    # Engine now uses logger.error instead of print
+    import asyncio
+
+    async def stop_soon():
+        await asyncio.sleep(0.2)  # Give time for exception to be caught
+        engine.stop()
+
+    with patch('provchain.watchdog.engine.logger') as mock_logger:
         # Start daemon and stop task
         daemon_task = asyncio.create_task(engine.run_daemon(sample_sbom))
         stop_task = asyncio.create_task(stop_soon())
-        
+
         # Wait for stop
         await stop_task
         # Give daemon a moment to handle exception and exit
         await asyncio.sleep(0.1)
-        
+
         # Cancel daemon if still running
         if not daemon_task.done():
             daemon_task.cancel()
@@ -229,11 +230,7 @@ async def test_watchdog_engine_run_daemon_exception_handling(sample_sbom, temp_d
                 await daemon_task
             except asyncio.CancelledError:
                 pass
-        
-        # Verify error was printed (lines 74-77)
-        assert mock_print.called
-        # Check that error message was printed
-        print_calls = [str(call) for call in mock_print.call_args_list]
-        assert any("Watchdog error:" in str(call) for call in print_calls)
-        assert any("Test error" in str(call) for call in print_calls)
+
+        # Verify error was logged
+        assert mock_logger.error.called
 

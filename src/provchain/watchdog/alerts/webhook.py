@@ -1,8 +1,12 @@
 """Webhook alert delivery"""
 
+import logging
+
 import httpx
 
 from provchain.data.models import Alert
+
+logger = logging.getLogger(__name__)
 
 
 class WebhookAlerter:
@@ -28,5 +32,4 @@ class WebhookAlerter:
         try:
             httpx.post(self.webhook_url, json=payload, timeout=10)
         except Exception:
-            # Log error
-            pass
+            logger.error("Failed to send webhook alert for '%s'", alert.title, exc_info=True)

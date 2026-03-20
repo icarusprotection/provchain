@@ -59,7 +59,7 @@ class OSVClient:
         }
 
         if version:
-            query["version"] = version
+            query["version"] = version  # type: ignore[assignment]
 
         try:
             response = self.client.post("/v1/query", json=query)

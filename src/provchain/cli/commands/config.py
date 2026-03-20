@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import Any, cast
 
 import typer
 from rich.console import Console
@@ -79,7 +80,7 @@ def set(
     config = Config(config_path=config_path)
 
     # Get the expected type from default config
-    default_section = Config.DEFAULT_CONFIG[section]
+    default_section = cast(dict[str, Any], Config.DEFAULT_CONFIG.get(section, {}))
     if config_key not in default_section:
         console.print(
             f"[red]Error: Invalid key '{config_key}' in section '{section}'. Valid keys: {', '.join(default_section.keys())}[/red]"
@@ -89,6 +90,7 @@ def set(
     expected_type = type(default_section[config_key])
 
     # Convert value to appropriate type
+    converted_value: Any = None
     try:
         if expected_type is bool:
             # Handle boolean strings

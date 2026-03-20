@@ -236,12 +236,12 @@ Contributions are welcome! Please see our contributing guidelines for more infor
 ## Documentation
 
 For detailed documentation, see:
-- [CLI Reference](docs/cli-reference.md)
-- [Vulnerability Detection](docs/vulnerability-detection.md)
-- [Attack Detection](docs/attack-detection.md)
-- [Configuration Guide](docs/configuration.md)
-- [Architecture Overview](docs/architecture.md)
-- [CI/CD Integration](docs/ci-cd.md)
+- [CLI Reference](docs/provchain/cli-reference.md)
+- [Vulnerability Detection](docs/provchain/vulnerability-detection.md)
+- [Attack Detection](docs/provchain/attack-detection.md)
+- [Configuration Guide](docs/provchain/configuration.md)
+- [Architecture Overview](docs/provchain/architecture.md)
+- [CI/CD Integration](docs/provchain/ci-cd.md)
 
 ## Links
 

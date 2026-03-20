@@ -35,11 +35,11 @@ class PluginLoader:
                         for name, obj in inspect.getmembers(module):
                             if inspect.isclass(obj):
                                 if issubclass(obj, AnalyzerPlugin) and obj != AnalyzerPlugin:
-                                    plugin = obj()
-                                    self.analyzers[plugin.name] = plugin
+                                    analyzer_plugin = obj()
+                                    self.analyzers[analyzer_plugin.name] = analyzer_plugin
                                 elif issubclass(obj, ReporterPlugin) and obj != ReporterPlugin:
-                                    plugin = obj()
-                                    self.reporters[plugin.name] = plugin
+                                    reporter_plugin = obj()
+                                    self.reporters[reporter_plugin.name] = reporter_plugin
                 except Exception:
                     # Plugin load failed, skip
                     pass

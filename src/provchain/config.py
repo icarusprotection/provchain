@@ -12,12 +12,12 @@ except ImportError:
 
         tomli = tomllib
     except ImportError:
-        tomli = None
+        tomli = None  # type: ignore[assignment]
 
 try:
     import tomli_w
 except ImportError:
-    tomli_w = None
+    tomli_w = None  # type: ignore[assignment]
 
 
 class Config:
@@ -26,7 +26,15 @@ class Config:
     DEFAULT_CONFIG = {
         "general": {
             "threshold": "medium",
-            "analyzers": ["typosquat", "maintainer", "metadata", "install_hooks", "behavior"],
+            "analyzers": [
+                "typosquat",
+                "maintainer",
+                "metadata",
+                "install_hooks",
+                "behavior",
+                "attack",
+                "vulnerability",
+            ],
             "cache_ttl": 24,
         },
         "behavior": {
@@ -123,7 +131,15 @@ class Config:
 
         # Validate general.analyzers
         analyzers = self.config.get("general", {}).get("analyzers", [])
-        valid_analyzers = ["typosquat", "maintainer", "metadata", "install_hooks", "behavior"]
+        valid_analyzers = [
+            "typosquat",
+            "maintainer",
+            "metadata",
+            "install_hooks",
+            "behavior",
+            "attack",
+            "vulnerability",
+        ]
         if not isinstance(analyzers, list):
             errors.append("general.analyzers must be a list")
         else:

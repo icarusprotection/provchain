@@ -1,5 +1,6 @@
 """Supply chain attack detection analyzer"""
 
+import logging
 import uuid
 from datetime import datetime, timezone
 
@@ -17,6 +18,8 @@ from provchain.data.models import (
 from provchain.integrations.pypi import PyPIClient
 from provchain.interrogator.analyzers.base import BaseAnalyzer
 from provchain.interrogator.analyzers.typosquat import TyposquatAnalyzer
+
+logger = logging.getLogger(__name__)
 
 
 class AttackAnalyzer(BaseAnalyzer):
@@ -94,7 +97,15 @@ class AttackAnalyzer(BaseAnalyzer):
         dep_confusion_findings = self._detect_dependency_confusion(package_metadata)
         findings.extend(dep_confusion_findings)
         for finding in dep_confusion_findings:
-            risk_score = max(risk_score, 9.0 if finding.severity == RiskLevel.CRITICAL else 7.0)
+            if finding.severity == RiskLevel.CRITICAL:
+                score = 9.0
+            elif finding.severity == RiskLevel.HIGH:
+                score = 7.5
+            elif finding.severity == RiskLevel.MEDIUM:
+                score = 5.5
+            else:
+                score = 4.0
+            risk_score = max(risk_score, score)
 
             attack = AttackHistory(
                 id=str(uuid.uuid4()),
@@ -157,11 +168,7 @@ class AttackAnalyzer(BaseAnalyzer):
                 try:
                     self.db.store_attack_history(attack)
                 except Exception as e:
-                    # Log error but continue processing
-                    import logging
-
-                    logger = logging.getLogger(__name__)
-                    logger.warning(f"Failed to store attack history {attack.id}: {e}")
+                    logger.warning("Failed to store attack history %s: %s", attack.id, e)
                     continue
 
         confidence = self.get_confidence(findings)
@@ -180,6 +187,9 @@ class AttackAnalyzer(BaseAnalyzer):
     def _detect_account_takeover(self, package_metadata: PackageMetadata) -> list[Finding]:
         """Detect account takeover attacks
 
+        Uses prior DB snapshots when available, but also performs lightweight
+        heuristic checks that work without prior state (bootstrapping).
+
         Args:
             package_metadata: Package metadata
 
@@ -188,38 +198,126 @@ class AttackAnalyzer(BaseAnalyzer):
         """
         findings = []
         package = package_metadata.identifier
-
-        if not self.db:
-            return findings
-
-        # Check maintainer history
         current_maintainers = {m.username for m in package_metadata.maintainers}
-        previous_snapshot = self.db.get_latest_maintainer_snapshot(package.ecosystem, package.name)
 
-        if previous_snapshot:
-            previous_maintainers = {
-                m.get("username", "") for m in previous_snapshot if m.get("username")
-            }
+        if self.db:
+            previous_snapshot = self.db.get_latest_maintainer_snapshot(
+                package.ecosystem, package.name
+            )
 
-            # Check for maintainer changes
-            if current_maintainers != previous_maintainers:
-                removed = previous_maintainers - current_maintainers
-                added = current_maintainers - previous_maintainers
+            if previous_snapshot:
+                previous_maintainers = {
+                    m.get("username", "") for m in previous_snapshot if m.get("username")
+                }
 
-                if removed or added:
-                    # Check if change was recent (within 30 days)
-                    # This is a simplified check - in production, would check snapshot dates
+                # Check for maintainer changes
+                if current_maintainers != previous_maintainers:
+                    removed = previous_maintainers - current_maintainers
+                    added = current_maintainers - previous_maintainers
+
+                    if removed or added:
+                        findings.append(
+                            Finding(
+                                id="account_takeover_maintainer_change",
+                                title="Maintainer change detected",
+                                description=(
+                                    f"Package maintainers changed. "
+                                    f"Removed: {', '.join(removed) if removed else 'None'}. "
+                                    f"Added: {', '.join(added) if added else 'None'}"
+                                ),
+                                severity=RiskLevel.HIGH,
+                                evidence=[
+                                    f"Previous maintainers: {', '.join(previous_maintainers)}",
+                                    f"Current maintainers: {', '.join(current_maintainers)}",
+                                ],
+                                remediation="Verify maintainer changes are legitimate and authorized",
+                            )
+                        )
+            else:
+                # No prior snapshot — bootstrap by storing the current state
+                logger.info(
+                    "No prior maintainer snapshot for %s/%s, bootstrapping from current data",
+                    package.ecosystem,
+                    package.name,
+                )
+                try:
+                    snapshot_data = [
+                        {"username": m.username, "email": getattr(m, "email", None)}
+                        for m in package_metadata.maintainers
+                    ]
+                    self.db.store_maintainer_snapshot(
+                        package.ecosystem, package.name, snapshot_data
+                    )
+                except Exception as exc:
+                    logger.warning("Failed to bootstrap maintainer snapshot: %s", exc)
+
+        # --- Lightweight heuristic checks (work without prior state) ---
+
+        # Check if the maintainer's account is very new relative to the package age
+        if package_metadata.first_release and package_metadata.maintainers:
+            now = datetime.now(timezone.utc)
+            first_release = package_metadata.first_release
+            if first_release.tzinfo is None:
+                first_release = first_release.replace(tzinfo=timezone.utc)
+            package_age_days = (now - first_release).days
+
+            for maintainer in package_metadata.maintainers:
+                account_created = getattr(maintainer, "created_at", None)
+                if account_created:
+                    if account_created.tzinfo is None:
+                        account_created = account_created.replace(tzinfo=timezone.utc)
+                    account_age_days = (now - account_created).days
+                    if account_age_days < 30 and package_age_days > 365:
+                        findings.append(
+                            Finding(
+                                id="account_takeover_new_maintainer_old_package",
+                                title="New maintainer on established package",
+                                description=(
+                                    f"Maintainer '{maintainer.username}' account is only "
+                                    f"{account_age_days} days old, but the package is "
+                                    f"{package_age_days} days old."
+                                ),
+                                severity=RiskLevel.MEDIUM,
+                                evidence=[
+                                    f"Account age: {account_age_days} days",
+                                    f"Package age: {package_age_days} days",
+                                    f"Maintainer: {maintainer.username}",
+                                ],
+                                remediation=(
+                                    "Verify this maintainer was intentionally added "
+                                    "by the original package authors."
+                                ),
+                            )
+                        )
+
+        # Check if maintainer has very few packages for a popular package
+        if (
+            package_metadata.download_count is not None
+            and package_metadata.download_count > 10_000
+            and package_metadata.maintainers
+        ):
+            for maintainer in package_metadata.maintainers:
+                other_packages = getattr(maintainer, "package_count", None)
+                if other_packages is not None and other_packages <= 2:
                     findings.append(
                         Finding(
-                            id="account_takeover_maintainer_change",
-                            title="Maintainer change detected",
-                            description=f"Package maintainers changed. Removed: {', '.join(removed) if removed else 'None'}. Added: {', '.join(added) if added else 'None'}",
-                            severity=RiskLevel.HIGH,
+                            id="account_takeover_low_activity_maintainer",
+                            title="Popular package maintained by low-activity account",
+                            description=(
+                                f"Maintainer '{maintainer.username}' has only "
+                                f"{other_packages} package(s) but maintains a package "
+                                f"with {package_metadata.download_count:,} downloads."
+                            ),
+                            severity=RiskLevel.MEDIUM,
                             evidence=[
-                                f"Previous maintainers: {', '.join(previous_maintainers)}",
-                                f"Current maintainers: {', '.join(current_maintainers)}",
+                                f"Maintainer: {maintainer.username}",
+                                f"Maintainer package count: {other_packages}",
+                                f"Package downloads: {package_metadata.download_count}",
                             ],
-                            remediation="Verify maintainer changes are legitimate and authorized",
+                            remediation=(
+                                "Verify the maintainer's identity and that this is "
+                                "not a compromised or hijacked account."
+                            ),
                         )
                     )
 
@@ -228,6 +326,8 @@ class AttackAnalyzer(BaseAnalyzer):
     def _detect_dependency_confusion(self, package_metadata: PackageMetadata) -> list[Finding]:
         """Detect dependency confusion attacks
 
+        Uses multiple indicators with graduated severity to reduce false positives.
+
         Args:
             package_metadata: Package metadata
 
@@ -237,39 +337,106 @@ class AttackAnalyzer(BaseAnalyzer):
         findings = []
         package = package_metadata.identifier
 
-        # Check for indicators of dependency confusion:
-        # 1. Low download count (new package)
-        # 2. Recent creation
-        # 3. Name suggests private/internal package
-
+        # Collect indicators of dependency confusion
         suspicious_indicators = []
 
-        if package_metadata.download_count is not None and package_metadata.download_count < 100:
+        # 1. Low download count (default threshold: 50)
+        download_threshold = 50
+        if (
+            package_metadata.download_count is not None
+            and package_metadata.download_count < download_threshold
+        ):
             suspicious_indicators.append(f"Low download count: {package_metadata.download_count}")
 
+        # 2. Recent creation (< 30 days for HIGH+)
         if package_metadata.first_release:
-            # Ensure both datetimes are timezone-aware
             now = datetime.now(timezone.utc)
             first_release = package_metadata.first_release
             if first_release.tzinfo is None:
-                # Naive datetime - assume UTC
                 first_release = first_release.replace(tzinfo=timezone.utc)
             days_since_first = (now - first_release).days
-            if days_since_first < 90:  # Less than 3 months old
-                suspicious_indicators.append(f"Recently created: {days_since_first} days ago")
+            if days_since_first < 30:
+                suspicious_indicators.append(f"Very recently created: {days_since_first} days ago")
 
-        # Check if name suggests private package (common patterns)
+        # 3. Name suggests private/internal package
         private_name_patterns = ["internal", "private", "corp", "company", "enterprise"]
         if any(pattern in package.name.lower() for pattern in private_name_patterns):
             suspicious_indicators.append("Package name suggests private/internal package")
 
-        if len(suspicious_indicators) >= 2:
+        # 4. No description or very short description
+        description = getattr(package_metadata, "description", None) or ""
+        if len(description.strip()) < 20:
+            suspicious_indicators.append(
+                f"Missing or very short description ({len(description.strip())} chars)"
+            )
+
+        # 5. No homepage or repository URL
+        homepage = getattr(package_metadata, "homepage_url", None)
+        repo_url = getattr(package_metadata, "repository_url", None)
+        if not homepage and not repo_url:
+            suspicious_indicators.append("No homepage or repository URL")
+
+        # 6. Single maintainer with no other packages
+        if package_metadata.maintainers and len(package_metadata.maintainers) == 1:
+            maintainer = package_metadata.maintainers[0]
+            other_packages = getattr(maintainer, "package_count", None)
+            if other_packages is not None and other_packages <= 1:
+                suspicious_indicators.append(
+                    f"Single maintainer '{maintainer.username}' with no other packages"
+                )
+
+        # 7. Name contains org-specific patterns (hyphenated with common org prefixes)
+        org_prefixes = [
+            "mycompany-",
+            "myorg-",
+            "acme-",
+            "ourteam-",
+            "devteam-",
+        ]
+        name_lower = package.name.lower()
+        if any(name_lower.startswith(prefix) for prefix in org_prefixes):
+            suspicious_indicators.append("Package name follows org-specific naming pattern")
+        # Also check for hyphenated names with "internal"/"private" as component
+        name_parts = set(name_lower.replace("_", "-").split("-"))
+        if name_parts & {"internal", "private", "corp", "staging", "dev"}:
+            # Only add if not already caught by pattern 3
+            indicator_text = "Package name component suggests internal/private usage"
+            if (
+                indicator_text not in suspicious_indicators
+                and "Package name suggests private/internal package" not in suspicious_indicators
+            ):
+                suspicious_indicators.append(indicator_text)
+
+        # --- Graduated severity based on indicator count ---
+        indicator_count = len(suspicious_indicators)
+
+        if indicator_count >= 2:
+            if indicator_count >= 4:
+                severity = RiskLevel.CRITICAL
+                label = "Strong indicators"
+            elif indicator_count >= 3:
+                severity = RiskLevel.HIGH
+                label = "Multiple indicators"
+            else:
+                severity = RiskLevel.MEDIUM
+                label = "Some indicators"
+
+            logger.info(
+                "Dependency confusion check for %s: %d indicators (%s)",
+                package.name,
+                indicator_count,
+                severity.value,
+            )
+
             findings.append(
                 Finding(
                     id="dependency_confusion_indicators",
-                    title="Potential dependency confusion attack",
-                    description=f"Package shows indicators of dependency confusion attack: {', '.join(suspicious_indicators)}",
-                    severity=RiskLevel.CRITICAL,
+                    title=f"Potential dependency confusion attack ({label})",
+                    description=(
+                        f"Package shows {indicator_count} indicators of dependency "
+                        f"confusion attack: {', '.join(suspicious_indicators)}"
+                    ),
+                    severity=severity,
                     evidence=suspicious_indicators,
                     remediation="Verify this is not a malicious package mimicking a private package name",
                 )
@@ -280,13 +447,15 @@ class AttackAnalyzer(BaseAnalyzer):
     def _detect_malicious_update(self, package_metadata: PackageMetadata) -> list[Finding]:
         """Detect malicious update attacks
 
+        Flags truly suspicious version jumps while allowing normal semver progression.
+
         Args:
             package_metadata: Package metadata
 
         Returns:
             List of findings
         """
-        findings = []
+        findings: list[Finding] = []
         package = package_metadata.identifier
 
         try:
@@ -319,32 +488,108 @@ class AttackAnalyzer(BaseAnalyzer):
 
                     # Calculate version jump
                     major_jump = current_version.major - previous_version.major
-                    minor_jump = current_version.minor - previous_version.minor
-                    patch_jump = current_version.patch - previous_version.patch
 
-                    # Large version jumps are suspicious
-                    if major_jump > 1 or (major_jump == 1 and (minor_jump > 0 or patch_jump > 0)):
+                    # --- Suspicious version jump checks ---
+                    suspicious = False
+                    evidence = [
+                        f"Previous version: {previous_version}",
+                        f"Current version: {current_version}",
+                    ]
+                    description_parts = []
+
+                    # 1. Skipping multiple major versions (>= 3) is unusual
+                    if major_jump >= 3:
+                        suspicious = True
+                        description_parts.append(
+                            f"Major version jumped by {major_jump} "
+                            f"(from {previous_version} to {current_version})"
+                        )
+                        evidence.append(f"Major version jump: {major_jump}")
+
+                    # 2. Jump to an unexpectedly high version number
+                    if current_version.major >= 99 and previous_version.major < 50:
+                        suspicious = True
+                        description_parts.append(
+                            f"Version jumped to unusually high major version "
+                            f"{current_version.major}"
+                        )
+                        evidence.append(f"High version number: {current_version.major}")
+
+                    if suspicious:
                         findings.append(
                             Finding(
                                 id="malicious_update_version_jump",
                                 title="Unusual version jump detected",
-                                description=f"Version jumped from {previous_version} to {current_version}. This may indicate a malicious update.",
-                                severity=RiskLevel.HIGH,
-                                evidence=[
-                                    f"Previous version: {previous_version}",
-                                    f"Current version: {current_version}",
-                                    f"Major jump: {major_jump}",
-                                ],
+                                description=(
+                                    f"Version jumped from {previous_version} to "
+                                    f"{current_version}. "
+                                    + " ".join(description_parts)
+                                    + " This may indicate a malicious update."
+                                ),
+                                severity=RiskLevel.MEDIUM,
+                                evidence=evidence,
                                 remediation="Review changelog and verify update is legitimate",
                             )
                         )
 
-        except Exception as e:
-            # Log error for debugging but continue gracefully
-            import logging
+                    # 3. Release frequency anomaly: dormant package suddenly updated
+                    if len(previous_versions) >= 2:
+                        # Try to get release dates from PyPI
+                        try:
+                            metadata = pypi.get_package_metadata(package.name, package.version)
+                            releases = metadata.get("releases", {})
 
-            logger = logging.getLogger(__name__)
-            logger.warning(f"Error detecting malicious update for {package.name}: {e}")
+                            # Get release date of the previous version
+                            prev_release_info = releases.get(str(previous_version), [])
+                            curr_release_info = releases.get(str(current_version), [])
+
+                            if prev_release_info and curr_release_info:
+                                prev_date_str = prev_release_info[0].get("upload_time_iso_8601")
+                                curr_date_str = curr_release_info[0].get("upload_time_iso_8601")
+
+                                if prev_date_str and curr_date_str:
+                                    prev_date = datetime.fromisoformat(
+                                        prev_date_str.replace("Z", "+00:00")
+                                    )
+                                    curr_date = datetime.fromisoformat(
+                                        curr_date_str.replace("Z", "+00:00")
+                                    )
+                                    gap_days = (curr_date - prev_date).days
+
+                                    if gap_days > 365:
+                                        findings.append(
+                                            Finding(
+                                                id="malicious_update_dormant_release",
+                                                title="Dormant package suddenly updated",
+                                                description=(
+                                                    f"Package had no releases for "
+                                                    f"{gap_days} days (>{gap_days // 365} year(s)) "
+                                                    f"before this update. This may indicate "
+                                                    f"a compromised maintainer account."
+                                                ),
+                                                severity=RiskLevel.MEDIUM,
+                                                evidence=[
+                                                    f"Previous release: {previous_version} "
+                                                    f"on {prev_date.date()}",
+                                                    f"Current release: {current_version} "
+                                                    f"on {curr_date.date()}",
+                                                    f"Gap: {gap_days} days",
+                                                ],
+                                                remediation=(
+                                                    "Verify that the update is from the "
+                                                    "original maintainer and review the changelog"
+                                                ),
+                                            )
+                                        )
+                        except Exception as exc:
+                            logger.debug(
+                                "Could not check release frequency for %s: %s",
+                                package.name,
+                                exc,
+                            )
+
+        except Exception as e:
+            logger.warning("Error detecting malicious update for %s: %s", package.name, e)
             # Graceful degradation - return empty findings
 
         return findings

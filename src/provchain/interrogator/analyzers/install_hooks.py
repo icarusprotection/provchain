@@ -1,11 +1,14 @@
 """Install hook analyzer for setup.py/pyproject.toml"""
 
 import ast
+import logging
 import re
 from pathlib import Path
 
 from provchain.data.models import AnalysisResult, Finding, PackageMetadata, RiskLevel
 from provchain.interrogator.analyzers.base import BaseAnalyzer
+
+logger = logging.getLogger(__name__)
 
 
 class InstallHookAnalyzer(BaseAnalyzer):
@@ -45,108 +48,113 @@ class InstallHookAnalyzer(BaseAnalyzer):
 
     def analyze_python_file(self, file_path: Path) -> list[Finding]:
         """Analyze Python file for dangerous patterns"""
-        findings = []
+        findings: list[Finding] = []
 
         try:
             with open(file_path, encoding="utf-8") as f:
                 content = f.read()
+        except OSError as exc:
+            logger.warning("Could not read file %s: %s", file_path, exc)
+            return findings
+        except UnicodeDecodeError as exc:
+            logger.warning("Encoding error reading %s: %s", file_path, exc)
+            return findings
 
-            # Pattern-based detection
-            for pattern, description in self.DANGEROUS_PATTERNS:
-                matches = re.finditer(pattern, content, re.IGNORECASE)
-                for match in matches:
-                    line_num = content[: match.start()].count("\n") + 1
-                    # Create safe ID from pattern (extract replace operations outside f-string)
-                    pattern_id = pattern.replace(r"\s*\(", "").replace(".", "_")
-                    findings.append(
-                        Finding(
-                            id=f"install_hook_{pattern_id}",
-                            title=f"Suspicious code: {description}",
-                            description=f"Found {description} in {file_path.name} at line {line_num}",
-                            severity=RiskLevel.HIGH,
-                            evidence=[
-                                f"File: {file_path.name}",
-                                f"Line: {line_num}",
-                                f"Pattern: {pattern}",
-                            ],
-                            remediation="Review install hooks for malicious code",
-                        )
+        # Pattern-based detection
+        for pattern, description in self.DANGEROUS_PATTERNS:
+            matches = re.finditer(pattern, content, re.IGNORECASE)
+            for match in matches:
+                line_num = content[: match.start()].count("\n") + 1
+                # Create safe ID from pattern (extract replace operations outside f-string)
+                pattern_id = pattern.replace(r"\s*\(", "").replace(".", "_")
+                findings.append(
+                    Finding(
+                        id=f"install_hook_{pattern_id}",
+                        title=f"Suspicious code: {description}",
+                        description=f"Found {description} in {file_path.name} at line {line_num}",
+                        severity=RiskLevel.HIGH,
+                        evidence=[
+                            f"File: {file_path.name}",
+                            f"Line: {line_num}",
+                            f"Pattern: {pattern}",
+                        ],
+                        remediation="Review install hooks for malicious code",
                     )
+                )
 
-            # AST-based analysis for imports
-            try:
-                tree = ast.parse(content, filename=str(file_path))
-                for node in ast.walk(tree):
-                    if isinstance(node, ast.Import):
-                        for alias in node.names:
-                            if any(dangerous in alias.name for dangerous in self.DANGEROUS_IMPORTS):
-                                findings.append(
-                                    Finding(
-                                        id=f"install_hook_import_{alias.name}",
-                                        title=f"Suspicious import: {alias.name}",
-                                        description=f"Import of potentially dangerous module: {alias.name}",
-                                        severity=RiskLevel.MEDIUM,
-                                        evidence=[
-                                            f"File: {file_path.name}",
-                                            f"Import: {alias.name}",
-                                        ],
-                                        remediation="Verify that network/system access is necessary",
-                                    )
+        # AST-based analysis for imports
+        try:
+            tree = ast.parse(content, filename=str(file_path))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if any(dangerous in alias.name for dangerous in self.DANGEROUS_IMPORTS):
+                            findings.append(
+                                Finding(
+                                    id=f"install_hook_import_{alias.name}",
+                                    title=f"Suspicious import: {alias.name}",
+                                    description=f"Import of potentially dangerous module: {alias.name}",
+                                    severity=RiskLevel.MEDIUM,
+                                    evidence=[
+                                        f"File: {file_path.name}",
+                                        f"Import: {alias.name}",
+                                    ],
+                                    remediation="Verify that network/system access is necessary",
                                 )
-                    elif isinstance(node, ast.Call):
-                        if isinstance(node.func, ast.Name):
-                            if node.func.id in ["exec", "eval", "__import__"]:
-                                findings.append(
-                                    Finding(
-                                        id=f"install_hook_call_{node.func.id}",
-                                        title=f"Dangerous function call: {node.func.id}",
-                                        description=f"Call to dangerous function {node.func.id}()",
-                                        severity=RiskLevel.CRITICAL,
-                                        evidence=[f"File: {file_path.name}"],
-                                        remediation="DO NOT INSTALL - Contains code execution",
-                                    )
+                            )
+                elif isinstance(node, ast.Call):
+                    if isinstance(node.func, ast.Name):
+                        if node.func.id in ["exec", "eval", "__import__"]:
+                            findings.append(
+                                Finding(
+                                    id=f"install_hook_call_{node.func.id}",
+                                    title=f"Dangerous function call: {node.func.id}",
+                                    description=f"Call to dangerous function {node.func.id}()",
+                                    severity=RiskLevel.CRITICAL,
+                                    evidence=[f"File: {file_path.name}"],
+                                    remediation="DO NOT INSTALL - Contains code execution",
                                 )
-            except SyntaxError:
-                # File has syntax errors, skip AST analysis
-                pass
-
-        except Exception:
-            # File read failed, skip
+                            )
+        except SyntaxError:
+            # File has syntax errors, skip AST analysis
             pass
 
         return findings
 
     def analyze_pyproject_toml(self, file_path: Path) -> list[Finding]:
         """Analyze pyproject.toml for suspicious build hooks"""
-        findings = []
+        findings: list[Finding] = []
 
         try:
             import tomli
-
-            with open(file_path, "rb") as f:
-                data = tomli.load(f)
-
-            # Check for custom build scripts or setup sections
-            # These sections indicate custom build processes that may be suspicious
-            # Note: "build-system" is a standard section (parsed as "build-system" key)
-            # but "build" (without "-system") and "setup" are suspicious custom sections
-            if "build" in data or "setup" in data:
-                findings.append(
-                    Finding(
-                        id="install_hook_custom_build",
-                        title="Custom build configuration",
-                        description="pyproject.toml contains custom build or setup configuration",
-                        severity=RiskLevel.LOW,
-                        evidence=[f"File: {file_path.name}"],
-                    )
-                )
-
         except ImportError:
             # tomli not available, skip
-            pass
-        except Exception:
-            # File read failed, skip
-            pass
+            return findings
+
+        try:
+            with open(file_path, "rb") as f:
+                data = tomli.load(f)
+        except OSError as exc:
+            logger.warning("Could not read %s: %s", file_path, exc)
+            return findings
+        except tomli.TOMLDecodeError as exc:
+            logger.warning("Invalid TOML in %s: %s", file_path, exc)
+            return findings
+
+        # Check for custom build scripts or setup sections
+        # These sections indicate custom build processes that may be suspicious
+        # Note: "build-system" is a standard section (parsed as "build-system" key)
+        # but "build" (without "-system") and "setup" are suspicious custom sections
+        if "build" in data or "setup" in data:
+            findings.append(
+                Finding(
+                    id="install_hook_custom_build",
+                    title="Custom build configuration",
+                    description="pyproject.toml contains custom build or setup configuration",
+                    severity=RiskLevel.LOW,
+                    evidence=[f"File: {file_path.name}"],
+                )
+            )
 
         return findings
 
@@ -298,6 +306,9 @@ class InstallHookAnalyzer(BaseAnalyzer):
                     confidence = 0.8 if findings else 0.9
 
         except Exception as e:
+            logger.warning(
+                "Install hooks analysis failed for %s: %s", package_name, e, exc_info=True
+            )
             # Analysis failed, return low confidence result
             findings.append(
                 Finding(

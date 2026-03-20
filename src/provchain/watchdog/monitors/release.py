@@ -1,11 +1,14 @@
 """Release monitor"""
 
+import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 
 from provchain.data.db import Database
 from provchain.data.models import Alert, PackageIdentifier, RiskLevel
 from provchain.integrations.pypi import PyPIClient
+
+logger = logging.getLogger(__name__)
 
 
 class ReleaseMonitor:
@@ -53,7 +56,6 @@ class ReleaseMonitor:
                         )
 
         except Exception:
-            # Release check failed, skip
-            pass
+            logger.error("Release check failed for package '%s'", package_name, exc_info=True)
 
         return alerts

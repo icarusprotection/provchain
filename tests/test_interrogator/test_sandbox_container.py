@@ -76,24 +76,23 @@ class TestSandboxContainer:
             assert container.docker_available is False
 
     def test_create_container_success(self):
-        """Test successful container creation"""
+        """Test successful container creation (create + start + strace install)"""
         with patch('provchain.interrogator.sandbox.container.check_docker_available', return_value=True), \
              patch('subprocess.run') as mock_run:
             mock_result = Mock()
             mock_result.stdout = "container-id-123\n"
             mock_run.return_value = mock_result
-            
+
             container = SandboxContainer()
             container.create()
-            
+
             assert container.container_id == "container-id-123"
-            mock_run.assert_called_once()
-            call_args = mock_run.call_args
-            assert call_args[0][0][0] == "docker"
-            assert call_args[0][0][1] == "create"
-            assert "--network" in call_args[0][0]
-            assert "none" in call_args[0][0]
-            assert "--read-only" in call_args[0][0]
+            # create() now does: docker create, docker start, apt-get update, apt-get install strace
+            assert mock_run.call_count >= 2
+            first_call = mock_run.call_args_list[0]
+            assert first_call[0][0][0] == "docker"
+            assert first_call[0][0][1] == "create"
+            assert "--read-only" in first_call[0][0]
 
     def test_create_container_docker_unavailable(self):
         """Test container creation when Docker is unavailable"""
@@ -152,18 +151,20 @@ class TestSandboxContainer:
             mock_result.stdout = "stdout output"
             mock_result.stderr = "stderr output"
             mock_run.return_value = mock_result
-            
+
             container = SandboxContainer()
             container.container_id = "container-id-123"
-            
+
             output = container.run_with_tracing(["python", "-c", "print('test')"])
-            
+
             assert output == "stdout outputstderr output"
-            mock_run.assert_called_once()
-            call_args = mock_run.call_args
-            assert call_args[0][0][0] == "docker"
-            assert call_args[0][0][1] == "exec"
-            assert "strace" in call_args[0][0]
+            # run_with_tracing now disconnects network first, then runs strace
+            assert mock_run.call_count == 2
+            # Second call is the actual traced command
+            trace_call = mock_run.call_args_list[1]
+            assert trace_call[0][0][0] == "docker"
+            assert trace_call[0][0][1] == "exec"
+            assert "strace" in trace_call[0][0]
 
     def test_run_with_tracing_no_container(self):
         """Test command execution when container is not created"""

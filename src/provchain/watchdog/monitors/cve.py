@@ -1,11 +1,14 @@
 """CVE monitor"""
 
+import logging
 import uuid
 from datetime import timedelta
 
 from provchain.data.db import Database
 from provchain.data.models import SBOM, Alert, RiskLevel
 from provchain.utils.network import HTTPClient
+
+logger = logging.getLogger(__name__)
 
 
 class CVEMonitor:
@@ -75,7 +78,7 @@ class CVEMonitor:
                                 )
                             )
             except Exception:
-                # Query failed, continue with next package
+                logger.error("CVE check failed for package '%s'", package.name, exc_info=True)
                 continue
 
         return alerts

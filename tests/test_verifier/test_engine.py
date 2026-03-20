@@ -121,31 +121,42 @@ def test_verifier_engine_verify_package_found():
 def test_verifier_engine_verify_package_with_dist_info(tmp_path):
     """Test verifying a package with dist-info directory"""
     engine = VerifierEngine()
-    
+
     pkg_id = PackageIdentifier(ecosystem="pypi", name="test-package", version="1.0.0")
-    
+
     with patch('importlib.util.find_spec') as mock_find_spec, \
-         patch('site.getsitepackages') as mock_site:
-        
+         patch('site.getsitepackages') as mock_site, \
+         patch.object(engine, '_find_dist_info') as mock_find_dist:
+
         mock_spec = Mock()
         mock_spec.origin = str(tmp_path / "test_package" / "__init__.py")
         mock_find_spec.return_value = mock_spec
         mock_site.return_value = [str(tmp_path / "site-packages")]
-        
+
         # Create dist-info directory
         dist_info = tmp_path / "site-packages" / "test_package-1.0.0.dist-info"
         dist_info.mkdir(parents=True)
         metadata_file = dist_info / "METADATA"
         metadata_file.write_text("Name: test-package\nVersion: 1.0.0\n")
-        
-        result = engine.verify_package(pkg_id)
-        
+        mock_find_dist.return_value = dist_info
+
+        # Mock PyPI client to avoid network calls
+        with patch('provchain.verifier.engine.PyPIClient') as mock_pypi_cls:
+            mock_pypi = Mock()
+            mock_pypi_cls.return_value.__enter__ = Mock(return_value=mock_pypi)
+            mock_pypi_cls.return_value.__exit__ = Mock(return_value=False)
+            mock_pypi.get_package_metadata.return_value = {
+                "urls": [],
+                "releases": {},
+            }
+
+            result = engine.verify_package(pkg_id)
+
         assert result["package"] == str(pkg_id)
         assert "verifications" in result
         assert "metadata" in result["verifications"]
         assert result["verifications"]["metadata"]["status"] == "found"
-        assert "hash" in result["verifications"]
-        assert result["verifications"]["hash"]["status"] == "limited"
+        assert "record_integrity" in result["verifications"]
 
 def test_verifier_engine_verify_package_with_egg_info(tmp_path):
     """Test verifying a package with egg-info directory"""
@@ -222,14 +233,21 @@ def test_verifier_engine_verify_package_spec_origin_none():
 def test_verifier_engine_verify_package_error():
     """Test verifying package with error"""
     engine = VerifierEngine()
-    
+
     pkg_id = PackageIdentifier(ecosystem="pypi", name="requests", version="2.31.0")
-    
-    with patch('importlib.util.find_spec') as mock_find_spec:
+
+    with patch('importlib.util.find_spec') as mock_find_spec, \
+         patch.object(engine, '_find_dist_info', return_value=None), \
+         patch('provchain.verifier.engine.PyPIClient') as mock_pypi_cls:
         mock_find_spec.side_effect = Exception("Test error")
-        
+        mock_pypi = Mock()
+        mock_pypi_cls.return_value.__enter__ = Mock(return_value=mock_pypi)
+        mock_pypi_cls.return_value.__exit__ = Mock(return_value=False)
+        mock_pypi.get_package_metadata.return_value = {"urls": [], "releases": {}}
+
         result = engine.verify_package(pkg_id)
-        
+
         assert "verifications" in result
-        assert "error" in result["verifications"]
+        assert "location" in result["verifications"]
+        assert result["verifications"]["location"]["status"] == "error"
 

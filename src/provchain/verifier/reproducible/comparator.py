@@ -103,11 +103,11 @@ class ArtifactComparator:
             with tarfile.open(artifact_path) as tar:
                 for member in tar.getmembers():
                     if member.isfile():
-                        content = tar.extractfile(member)
-                        if content:
+                        f = tar.extractfile(member)
+                        if f:
                             import hashlib
 
-                            file_hash = hashlib.sha256(content.read()).hexdigest()
+                            file_hash = hashlib.sha256(f.read()).hexdigest()
                             files[member.name] = file_hash
 
         return files

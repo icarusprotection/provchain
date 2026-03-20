@@ -273,15 +273,15 @@ class CVSSCalculator:
         if "database_specific" in vuln_data:
             db_specific = vuln_data["database_specific"]
             if "cvss_score" in db_specific:
-                return db_specific["cvss_score"]
+                return str(db_specific["cvss_score"])
             if "cvss_vector" in db_specific:
-                return db_specific["cvss_vector"]
+                return str(db_specific["cvss_vector"])
 
         # Check severities field
         if "severity" in vuln_data:
             for severity in vuln_data["severity"]:
                 if "score" in severity and "CVSS:3.1" in severity.get("type", ""):
-                    return severity.get("score", "")
+                    return str(severity.get("score", ""))
 
         # Check references for CVSS links
         if "references" in vuln_data:

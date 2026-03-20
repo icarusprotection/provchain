@@ -1,11 +1,14 @@
 """Maintainer change monitor"""
 
+import logging
 import uuid
 from datetime import timedelta
 
 from provchain.data.db import Database
 from provchain.data.models import Alert, PackageIdentifier, RiskLevel
 from provchain.integrations.pypi import PyPIClient
+
+logger = logging.getLogger(__name__)
 
 
 class MaintainerMonitor:
@@ -54,7 +57,7 @@ class MaintainerMonitor:
                             alert_type="maintainer_added",
                             severity=RiskLevel.HIGH,
                             title=f"New maintainer(s) added to {package_name}",
-                            description=f"New maintainers detected: {', '.join(new_maintainers)}",
+                            description=f"New maintainers detected: {', '.join(str(m) for m in new_maintainers)}",
                             evidence={"new_maintainers": list(new_maintainers)},
                             recommended_action="Verify new maintainer identity and legitimacy",
                         )
@@ -82,7 +85,6 @@ class MaintainerMonitor:
             self.db.store_maintainer_snapshot("pypi", package_name, current_maintainers)
 
         except Exception:
-            # Log error
-            pass
+            logger.error("Maintainer check failed for package '%s'", package_name, exc_info=True)
 
         return alerts

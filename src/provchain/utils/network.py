@@ -13,7 +13,7 @@ class RateLimiter:
     def __init__(self, max_requests: int, time_window: float):
         self.max_requests = max_requests
         self.time_window = time_window
-        self.requests = []
+        self.requests: list[float] = []
 
     def wait_if_needed(self) -> None:
         """Wait if rate limit would be exceeded"""
@@ -60,12 +60,14 @@ class HTTPClient:
 
         # httpx.Client by default verifies SSL certificates
         # We explicitly ensure verify=True for security
-        self.client = httpx.Client(
-            base_url=base_url,
-            timeout=timeout,
-            follow_redirects=True,
-            verify=True,  # Explicitly enable SSL verification
-        )
+        client_kwargs: dict[str, Any] = {
+            "timeout": timeout,
+            "follow_redirects": True,
+            "verify": True,
+        }
+        if base_url is not None:
+            client_kwargs["base_url"] = base_url
+        self.client = httpx.Client(**client_kwargs)
 
     def get(self, url: str, **kwargs: Any) -> httpx.Response:
         """Make GET request with rate limiting"""
@@ -100,6 +102,7 @@ class HTTPClient:
                     time.sleep(2**attempt)
                     continue
                 raise
+        raise httpx.RequestError("Max retries exceeded")
 
     def post(self, url: str, **kwargs: Any) -> httpx.Response:
         """Make POST request with rate limiting"""
@@ -133,6 +136,7 @@ class HTTPClient:
                     time.sleep(2**attempt)
                     continue
                 raise
+        raise httpx.RequestError("Max retries exceeded")
 
     def close(self) -> None:
         """Close the HTTP client"""
@@ -165,14 +169,14 @@ class AsyncHTTPClient:
         self.timeout = timeout
         self.max_retries = max_retries
         self.max_response_size = max_response_size or self.MAX_RESPONSE_SIZE
-        # httpx.AsyncClient by default verifies SSL certificates
-        # We explicitly ensure verify=True for security
-        self.client = httpx.AsyncClient(
-            base_url=base_url,
-            timeout=timeout,
-            follow_redirects=True,
-            verify=True,  # Explicitly enable SSL verification
-        )
+        client_kwargs: dict[str, Any] = {
+            "timeout": timeout,
+            "follow_redirects": True,
+            "verify": True,
+        }
+        if base_url is not None:
+            client_kwargs["base_url"] = base_url
+        self.client = httpx.AsyncClient(**client_kwargs)
 
     async def get(self, url: str, **kwargs: Any) -> httpx.Response:
         """Make async GET request with rate limiting"""
@@ -201,6 +205,7 @@ class AsyncHTTPClient:
                     await asyncio.sleep(2**attempt)
                     continue
                 raise
+        raise httpx.RequestError("Max retries exceeded")
 
     async def close(self) -> None:
         """Close the async HTTP client"""

@@ -193,16 +193,14 @@ def test_sigstore_verifier_library_missing(tmp_path):
 
 
 def test_sigstore_verifier_signature_found(tmp_path):
-    """Test sigstore verifier when signature file is found"""
+    """Test sigstore verifier when signature file is found and verification succeeds"""
     artifact = tmp_path / "package.whl"
     artifact.write_text("fake package")
     signature = tmp_path / "package.whl.sig"
     signature.write_text("fake signature")
-    cert = tmp_path / "package.whl.crt"
-    cert.write_text("fake certificate")
-    
+
     verifier = SigstoreVerifier()
-    
+
     # Create mock module structure
     import sys
     mock_sigstore_verify = MagicMock()
@@ -210,31 +208,41 @@ def test_sigstore_verifier_signature_found(tmp_path):
     mock_verifier_instance = MagicMock()
     mock_verifier_class.production.return_value = mock_verifier_instance
     mock_sigstore_verify.Verifier = mock_verifier_class
-    
-    mock_materials_class = MagicMock()
-    mock_materials_class.from_dsse = MagicMock(return_value=MagicMock())
-    mock_sigstore_verify.VerificationMaterials = mock_materials_class
-    
-    # Inject mock into sys.modules
-    with patch.dict('sys.modules', {'sigstore.verify': mock_sigstore_verify, 'sigstore.verify.policy': MagicMock()}):
+    mock_sigstore_verify.policy = MagicMock()
+
+    mock_sigstore_models = MagicMock()
+    mock_bundle = MagicMock()
+    mock_sigstore_models.Bundle.from_json.return_value = mock_bundle
+
+    # Inject mock into sys.modules so the 'from sigstore...' imports resolve
+    with patch.dict('sys.modules', {
+        'sigstore': MagicMock(),
+        'sigstore.verify': mock_sigstore_verify,
+        'sigstore.verify.policy': mock_sigstore_verify.policy,
+        'sigstore.models': mock_sigstore_models,
+    }):
         result = verifier.verify(artifact)
-        
+
         assert result["available"] is True
-        assert result["status"] == "signature_found"
-        assert "signature file found" in result["note"]
+        assert result["status"] == "verified"
+        assert "signature_file" in result
 
 
 def test_sigstore_verifier_with_certificate(tmp_path):
-    """Test sigstore verifier with certificate file"""
+    """Test sigstore verifier with certificate file and sigstore bundle"""
     artifact = tmp_path / "package.whl"
     artifact.write_text("fake package")
-    signature = tmp_path / "package.whl.sig"
-    signature.write_text("fake signature")
-    cert = tmp_path / "package.whl.crt"
-    cert.write_text("fake certificate")
-    
+    # Use .sigstore.json bundle format
+    import json
+    bundle_path = tmp_path / "package.whl.sigstore.json"
+    bundle_path.write_text(json.dumps({
+        "mediaType": "application/vnd.dev.sigstore.bundle+json;version=0.2",
+        "verificationMaterial": {"content": {}},
+        "messageSignature": {"signature": "abc"},
+    }))
+
     verifier = SigstoreVerifier()
-    
+
     # Create mock module structure
     import sys
     mock_sigstore_verify = MagicMock()
@@ -242,41 +250,54 @@ def test_sigstore_verifier_with_certificate(tmp_path):
     mock_verifier_instance = MagicMock()
     mock_verifier_class.production.return_value = mock_verifier_instance
     mock_sigstore_verify.Verifier = mock_verifier_class
-    
-    mock_materials_class = MagicMock()
-    mock_materials_class.from_dsse = MagicMock(return_value=MagicMock())
-    mock_sigstore_verify.VerificationMaterials = mock_materials_class
-    
-    # Inject mock into sys.modules
-    with patch.dict('sys.modules', {'sigstore.verify': mock_sigstore_verify, 'sigstore.verify.policy': MagicMock()}):
+    mock_sigstore_verify.policy = MagicMock()
+
+    mock_sigstore_models = MagicMock()
+    mock_bundle = MagicMock()
+    mock_sigstore_models.Bundle.from_json.return_value = mock_bundle
+
+    with patch.dict('sys.modules', {
+        'sigstore': MagicMock(),
+        'sigstore.verify': mock_sigstore_verify,
+        'sigstore.verify.policy': mock_sigstore_verify.policy,
+        'sigstore.models': mock_sigstore_models,
+    }):
         result = verifier.verify(artifact)
-        
+
         assert result["available"] is True
         assert "signature_file" in result
 
 
 def test_sigstore_verifier_error_handling(tmp_path):
-    """Test sigstore verifier error handling"""
+    """Test sigstore verifier error handling when verification fails"""
     artifact = tmp_path / "package.whl"
     artifact.write_text("fake package")
     signature = tmp_path / "package.whl.sig"
     signature.write_text("fake signature")
-    
+
     verifier = SigstoreVerifier()
-    
-    # Create mock module structure that raises exception
+
+    # Create mock module structure that raises exception during verification
     import sys
     mock_sigstore_verify = MagicMock()
     mock_verifier_class = MagicMock()
     mock_verifier_class.production.side_effect = Exception("Test error")
     mock_sigstore_verify.Verifier = mock_verifier_class
-    
+    mock_sigstore_verify.policy = MagicMock()
+
+    mock_sigstore_models = MagicMock()
+
     # Inject mock into sys.modules
-    with patch.dict('sys.modules', {'sigstore.verify': mock_sigstore_verify, 'sigstore.verify.policy': MagicMock()}):
+    with patch.dict('sys.modules', {
+        'sigstore': MagicMock(),
+        'sigstore.verify': mock_sigstore_verify,
+        'sigstore.verify.policy': mock_sigstore_verify.policy,
+        'sigstore.models': mock_sigstore_models,
+    }):
         result = verifier.verify(artifact)
-        
-        assert result["available"] is False
-        assert result["status"] == "error"
+
+        assert result["available"] is True
+        assert result["status"] == "verification_failed"
         assert "error" in result
 
 

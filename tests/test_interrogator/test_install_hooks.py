@@ -214,7 +214,7 @@ class TestInstallHookAnalyzer:
             # Mock tarfile extraction
             mock_tar = MagicMock()
             extracted_path = tmp_path / "extracted"
-            def extractall(path):
+            def extractall(path, members=None):
                 # Create extracted directory with package subdirectory
                 extract_path = Path(path)
                 if not extract_path.exists():
@@ -415,7 +415,7 @@ build-backend = "setuptools.build_meta"
             # Mock zipfile extraction
             mock_zip = MagicMock()
             extracted_path = tmp_path / "extracted"
-            def extractall(path):
+            def extractall(path, members=None):
                 extract_path = Path(path)
                 if not extract_path.exists():
                     extract_path.mkdir(parents=True, exist_ok=True)
@@ -469,7 +469,7 @@ build-backend = "setuptools.build_meta"
             # Mock tarfile extraction
             mock_tar = MagicMock()
             extracted_path = tmp_path / "extracted"
-            def extractall(path):
+            def extractall(path, members=None):
                 extract_path = Path(path)
                 if not extract_path.exists():
                     extract_path.mkdir(parents=True, exist_ok=True)
@@ -524,7 +524,7 @@ build-backend = "setuptools.build_meta"
             # Mock tarfile extraction with pyproject.toml
             mock_tar = MagicMock()
             extracted_path = tmp_path / "extracted"
-            def extractall(path):
+            def extractall(path, members=None):
                 extract_path = Path(path)
                 if not extract_path.exists():
                     extract_path.mkdir(parents=True, exist_ok=True)
@@ -580,7 +580,7 @@ build-backend = "setuptools.build_meta"
             # Mock tarfile extraction with setup.cfg
             mock_tar = MagicMock()
             extracted_path = tmp_path / "extracted"
-            def extractall(path):
+            def extractall(path, members=None):
                 extract_path = Path(path)
                 if not extract_path.exists():
                     extract_path.mkdir(parents=True, exist_ok=True)

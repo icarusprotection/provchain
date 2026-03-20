@@ -1,8 +1,12 @@
 """Slack webhook integration"""
 
+import logging
+
 import httpx
 
 from provchain.data.models import Alert
+
+logger = logging.getLogger(__name__)
 
 
 class SlackAlerter:
@@ -22,17 +26,19 @@ class SlackAlerter:
             "unknown": "#808080",
         }
 
+        fields: list[dict[str, object]] = [
+            {"title": "Package", "value": str(alert.package), "short": True},
+            {"title": "Severity", "value": alert.severity.value.upper(), "short": True},
+            {"title": "Type", "value": alert.alert_type, "short": True},
+            {"title": "Description", "value": alert.description, "short": False},
+        ]
+
         payload = {
             "attachments": [
                 {
                     "color": color_map.get(alert.severity.value, "#808080"),
                     "title": alert.title,
-                    "fields": [
-                        {"title": "Package", "value": str(alert.package), "short": True},
-                        {"title": "Severity", "value": alert.severity.value.upper(), "short": True},
-                        {"title": "Type", "value": alert.alert_type, "short": True},
-                        {"title": "Description", "value": alert.description, "short": False},
-                    ],
+                    "fields": fields,
                     "footer": "ProvChain",
                     "ts": int(alert.timestamp.timestamp()),
                 }
@@ -40,12 +46,11 @@ class SlackAlerter:
         }
 
         if alert.recommended_action:
-            payload["attachments"][0]["fields"].append(
+            fields.append(
                 {"title": "Recommended Action", "value": alert.recommended_action, "short": False}
             )
 
         try:
             httpx.post(self.webhook_url, json=payload, timeout=10)
         except Exception:
-            # Log error
-            pass
+            logger.error("Failed to send Slack alert for '%s'", alert.title, exc_info=True)

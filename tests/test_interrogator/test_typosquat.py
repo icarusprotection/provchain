@@ -120,9 +120,10 @@ def test_typosquat_analyzer_same_package():
         identifier=PackageIdentifier(ecosystem="pypi", name="requests", version="1.0.0"),
         description="Test",
     )
-    analyzer = TyposquatAnalyzer()
+    # Use explicit popular_packages to avoid dynamic list introducing similar names
+    analyzer = TyposquatAnalyzer(popular_packages=["requests", "numpy", "flask"])
     result = analyzer.analyze(metadata)
-    
+
     # Should not flag itself
     assert result.risk_score == 0.0
     assert len(result.findings) == 0

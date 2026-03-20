@@ -92,7 +92,7 @@ class TestReproducibleBuildChecker:
         
         # Setup zipfile - need to mock extractall to create a directory
         mock_zip = MagicMock()
-        def mock_extractall(path):
+        def mock_extractall(path, **kwargs):
             # Create a directory to simulate extraction
             extract_path = Path(path) if isinstance(path, str) else path
             (extract_path / "package-1.0.0").mkdir(parents=True, exist_ok=True)
@@ -151,9 +151,9 @@ class TestReproducibleBuildChecker:
         
         # Setup tarfile - need to mock extractall to create a directory
         mock_tar = MagicMock()
-        def mock_extractall(path):
+        def mock_extractall(path, **kwargs):
             # Create a directory to simulate extraction
-            Path(path) / "package-1.0.0".mkdir(parents=True, exist_ok=True)
+            (Path(path) / "package-1.0.0").mkdir(parents=True, exist_ok=True)
         mock_tar.extractall = mock_extractall
         mock_tarfile_open.return_value.__enter__.return_value = mock_tar
         mock_tarfile_open.return_value.__exit__.return_value = None
@@ -252,7 +252,7 @@ class TestReproducibleBuildChecker:
         
         # Setup tarfile
         mock_tar = MagicMock()
-        def mock_extractall(path):
+        def mock_extractall(path, **kwargs):
             extract_path = Path(path) if isinstance(path, str) else path
             (extract_path / "package-1.0.0").mkdir(parents=True, exist_ok=True)
         mock_tar.extractall = mock_extractall
@@ -313,7 +313,7 @@ class TestReproducibleBuildChecker:
         
         # Setup tarfile
         mock_tar = MagicMock()
-        def mock_extractall(path):
+        def mock_extractall(path, **kwargs):
             extract_path = Path(path) if isinstance(path, str) else path
             (extract_path / "package-1.0.0").mkdir(parents=True, exist_ok=True)
         mock_tar.extractall = mock_extractall
@@ -363,7 +363,7 @@ class TestReproducibleBuildChecker:
         
         # Setup tarfile
         mock_tar = MagicMock()
-        def mock_extractall(path):
+        def mock_extractall(path, **kwargs):
             extract_path = Path(path) if isinstance(path, str) else path
             (extract_path / "package-1.0.0").mkdir(parents=True, exist_ok=True)
         mock_tar.extractall = mock_extractall
@@ -417,7 +417,7 @@ class TestReproducibleBuildChecker:
         
         # Setup tarfile
         mock_tar = MagicMock()
-        def mock_extractall(path):
+        def mock_extractall(path, **kwargs):
             extract_path = Path(path) if isinstance(path, str) else path
             (extract_path / "package-1.0.0").mkdir(parents=True, exist_ok=True)
         mock_tar.extractall = mock_extractall
@@ -474,7 +474,7 @@ class TestReproducibleBuildChecker:
         
         # Setup tarfile
         mock_tar = MagicMock()
-        def mock_extractall(path):
+        def mock_extractall(path, **kwargs):
             extract_path = Path(path) if isinstance(path, str) else path
             (extract_path / "package-1.0.0").mkdir(parents=True, exist_ok=True)
         mock_tar.extractall = mock_extractall
@@ -521,7 +521,7 @@ class TestReproducibleBuildChecker:
         
         # Setup tarfile
         mock_tar = MagicMock()
-        def mock_extractall(path):
+        def mock_extractall(path, **kwargs):
             extract_path = Path(path) if isinstance(path, str) else path
             (extract_path / "package-1.0.0").mkdir(parents=True, exist_ok=True)
         mock_tar.extractall = mock_extractall
@@ -585,7 +585,7 @@ class TestReproducibleBuildChecker:
         
         # Setup tarfile
         mock_tar = MagicMock()
-        def mock_extractall(path):
+        def mock_extractall(path, **kwargs):
             extract_path = Path(path) if isinstance(path, str) else path
             (extract_path / "package-1.0.0").mkdir(parents=True, exist_ok=True)
         mock_tar.extractall = mock_extractall

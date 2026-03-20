@@ -1,9 +1,12 @@
 """Email alert delivery"""
 
+import logging
 import smtplib
 from email.mime.text import MIMEText
 
 from provchain.data.models import Alert
+
+logger = logging.getLogger(__name__)
 
 
 class EmailAlerter:
@@ -57,5 +60,4 @@ Recommended Action:
                 server.login(self.username, self.password)
                 server.send_message(msg)
         except Exception:
-            # Log error
-            pass
+            logger.error("Failed to send email alert for '%s'", alert.title, exc_info=True)
