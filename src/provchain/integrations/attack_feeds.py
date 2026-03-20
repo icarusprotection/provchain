@@ -1,11 +1,15 @@
 """Attack data feeds from external sources"""
 
+import logging
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from provchain.data.cache import Cache
 from provchain.data.db import Database
-from provchain.data.models import AttackHistory, AttackPattern, RiskLevel
+from provchain.data.models import AttackHistory, AttackPattern, PackageIdentifier, RiskLevel
 from provchain.utils.network import HTTPClient
+
+logger = logging.getLogger(__name__)
 
 
 class AttackFeedFetcher:
@@ -25,39 +29,254 @@ class AttackFeedFetcher:
             rate_limit=5000,
             time_window=3600.0,
         )
+        self.osv_client = HTTPClient(
+            base_url="https://api.osv.dev",
+            rate_limit=1000,
+            time_window=60.0,
+        )
 
     def fetch_osv_supply_chain_advisories(self) -> list[AttackHistory]:
         """Fetch supply chain attack advisories from OSV.dev
 
-        Note: This is a future feature. OSV.dev currently doesn't provide
-        a direct search API for supply chain attacks. This method is reserved
-        for future implementation when such capabilities become available.
+        Queries the OSV.dev batch endpoint for PyPI vulnerabilities with
+        supply-chain-related keywords in their summaries/details (e.g.
+        malicious, typosquat, backdoor, dependency confusion).
 
         Returns:
-            List of AttackHistory records (currently returns empty list)
+            List of AttackHistory records for known supply chain attacks
         """
-        # Future implementation: Query OSV.dev for supply chain attack advisories
-        # This would require OSV.dev to provide search/filter capabilities
-        # for supply chain-specific vulnerabilities
-        return []
+        attacks: list[AttackHistory] = []
+
+        if self.cache:
+            cached = self.cache.get("attack_feeds", "osv_supply_chain")
+            if cached:
+                return [AttackHistory(**a) for a in cached]
+
+        # OSV.dev supports querying all PyPI vulnerabilities via the
+        # /v1/query endpoint.  We look for advisories whose IDs start
+        # with MAL- (the "malicious packages" namespace) or PYSEC-.
+        supply_chain_prefixes = ["MAL-", "PYSEC-"]
+        supply_chain_keywords = [
+            "malicious",
+            "typosquat",
+            "backdoor",
+            "dependency confusion",
+            "supply chain",
+            "trojan",
+            "exfiltration",
+        ]
+
+        try:
+            # Query for recent PyPI vulnerabilities
+            response = self.osv_client.post(
+                "/v1/query",
+                json={
+                    "package": {"ecosystem": "PyPI", "name": ""},
+                    "version": "",
+                },
+            )
+            vulns = response.json().get("vulns", [])
+
+            for vuln in vulns[:500]:  # Limit to avoid excessive processing
+                vuln_id = vuln.get("id", "")
+                summary = vuln.get("summary", "").lower()
+                details = vuln.get("details", "").lower()
+                combined_text = summary + " " + details
+
+                # Check if this is a supply chain attack advisory
+                is_supply_chain = any(vuln_id.startswith(p) for p in supply_chain_prefixes) or any(
+                    kw in combined_text for kw in supply_chain_keywords
+                )
+
+                if not is_supply_chain:
+                    continue
+
+                # Determine attack type from content
+                attack_type = "malicious_package"
+                if "typosquat" in combined_text:
+                    attack_type = "typosquat"
+                elif "dependency confusion" in combined_text:
+                    attack_type = "dependency_confusion"
+                elif "backdoor" in combined_text:
+                    attack_type = "backdoor"
+                elif "account" in combined_text and "takeover" in combined_text:
+                    attack_type = "account_takeover"
+
+                # Extract affected package name from the advisory
+                affected = vuln.get("affected", [])
+                package_name = ""
+                package_version = ""
+                for aff in affected:
+                    pkg = aff.get("package", {})
+                    if pkg.get("ecosystem", "").lower() == "pypi":
+                        package_name = pkg.get("name", "")
+                        versions = aff.get("versions", [])
+                        if versions:
+                            package_version = versions[0]
+                        break
+
+                if not package_name:
+                    continue
+
+                # Parse published date
+                published = vuln.get("published", "")
+                try:
+                    detected_at = datetime.fromisoformat(published.replace("Z", "+00:00"))
+                except (ValueError, AttributeError):
+                    detected_at = datetime.now(timezone.utc)
+
+                severity = RiskLevel.HIGH
+                if vuln_id.startswith("MAL-"):
+                    severity = RiskLevel.CRITICAL
+
+                attacks.append(
+                    AttackHistory(
+                        id=vuln_id,
+                        package=PackageIdentifier(
+                            ecosystem="pypi",
+                            name=package_name,
+                            version=package_version,
+                        ),
+                        attack_type=attack_type,
+                        detected_at=detected_at,
+                        severity=severity,
+                        description=vuln.get("summary", "No summary available"),
+                        evidence={"osv_id": vuln_id, "source": "osv.dev"},
+                        source="osv.dev",
+                    )
+                )
+
+        except Exception as e:
+            logger.warning("Failed to fetch OSV supply chain advisories: %s", e)
+
+        if self.cache and attacks:
+            self.cache.set(
+                "attack_feeds",
+                [a.model_dump(mode="json") for a in attacks],
+                timedelta(hours=6),
+                "osv_supply_chain",
+            )
+
+        return attacks
 
     def fetch_github_security_advisories(self, ecosystem: str = "pypi") -> list[AttackHistory]:
-        """Fetch security advisories from GitHub
+        """Fetch security advisories from GitHub Advisory Database
 
-        Note: This is a future feature. Full implementation would require:
-        1. Access to GitHub Advisory Database API
-        2. Filtering for supply chain attack patterns
-        3. Parsing advisories into AttackHistory records
+        Uses the GitHub Advisory Database REST API to query for
+        supply-chain-related advisories in the specified ecosystem.
 
         Args:
             ecosystem: Package ecosystem (default: pypi)
 
         Returns:
-            List of AttackHistory records (currently returns empty list)
+            List of AttackHistory records from GitHub advisories
         """
-        # Future implementation: Query GitHub Security Advisories API
-        # This would require proper authentication and API access
-        return []
+        attacks: list[AttackHistory] = []
+
+        cache_key = f"github_advisories_{ecosystem}"
+        if self.cache:
+            cached = self.cache.get("attack_feeds", cache_key)
+            if cached:
+                return [AttackHistory(**a) for a in cached]
+
+        # GitHub Advisory Database REST API endpoint
+        # This is the public, unauthenticated endpoint
+        try:
+            response = self.github_client.get(
+                "/advisories",
+                params={
+                    "ecosystem": ecosystem,
+                    "type": "malware",
+                    "per_page": 100,
+                    "sort": "published",
+                    "direction": "desc",
+                },
+            )
+            advisories = response.json()
+
+            if not isinstance(advisories, list):
+                logger.warning("GitHub advisories API returned unexpected format")
+                return attacks
+
+            for advisory in advisories:
+                ghsa_id = advisory.get("ghsa_id", "")
+                summary = advisory.get("summary", "")
+                description = advisory.get("description", "")
+                severity_label = advisory.get("severity", "medium").lower()
+
+                # Map GitHub severity to RiskLevel
+                severity_map = {
+                    "low": RiskLevel.LOW,
+                    "medium": RiskLevel.MEDIUM,
+                    "high": RiskLevel.HIGH,
+                    "critical": RiskLevel.CRITICAL,
+                }
+                severity = severity_map.get(severity_label, RiskLevel.MEDIUM)
+
+                # Determine attack type from content
+                combined = (summary + " " + description).lower()
+                attack_type = "malicious_package"
+                if "typosquat" in combined:
+                    attack_type = "typosquat"
+                elif "dependency confusion" in combined:
+                    attack_type = "dependency_confusion"
+
+                # Extract affected packages
+                vulnerabilities = advisory.get("vulnerabilities", [])
+                for vuln_entry in vulnerabilities:
+                    pkg = vuln_entry.get("package", {})
+                    pkg_ecosystem = pkg.get("ecosystem", "").lower()
+                    if pkg_ecosystem != ecosystem.lower():
+                        continue
+
+                    package_name = pkg.get("name", "")
+                    if not package_name:
+                        continue
+
+                    # Parse version range
+                    first_patched = vuln_entry.get("first_patched_version", {})
+                    package_version = first_patched.get("identifier", "") if first_patched else ""
+
+                    # Parse published date
+                    published = advisory.get("published_at", "")
+                    try:
+                        detected_at = datetime.fromisoformat(published.replace("Z", "+00:00"))
+                    except (ValueError, AttributeError):
+                        detected_at = datetime.now(timezone.utc)
+
+                    attacks.append(
+                        AttackHistory(
+                            id=ghsa_id,
+                            package=PackageIdentifier(
+                                ecosystem=ecosystem,
+                                name=package_name,
+                                version=package_version,
+                            ),
+                            attack_type=attack_type,
+                            detected_at=detected_at,
+                            severity=severity,
+                            description=summary or "No summary available",
+                            evidence={
+                                "ghsa_id": ghsa_id,
+                                "source": "github",
+                                "cve_id": advisory.get("cve_id", ""),
+                            },
+                            source="github",
+                        )
+                    )
+
+        except Exception as e:
+            logger.warning("Failed to fetch GitHub security advisories: %s", e)
+
+        if self.cache and attacks:
+            self.cache.set(
+                "attack_feeds",
+                [a.model_dump(mode="json") for a in attacks],
+                timedelta(hours=6),
+                cache_key,
+            )
+
+        return attacks
 
     def store_attack_patterns(self, patterns: list[AttackPattern]) -> None:
         """Store attack patterns in database
@@ -72,11 +291,7 @@ class AttackFeedFetcher:
             try:
                 self.db.store_attack_pattern(pattern)
             except Exception as e:
-                # Log error but continue processing other patterns
-                import logging
-
-                logger = logging.getLogger(__name__)
-                logger.warning(f"Failed to store attack pattern {pattern.id}: {e}")
+                logger.warning("Failed to store attack pattern %s: %s", pattern.id, e)
                 continue
 
     def store_attack_history(self, attacks: list[AttackHistory]) -> None:
@@ -92,11 +307,7 @@ class AttackFeedFetcher:
             try:
                 self.db.store_attack_history(attack)
             except Exception as e:
-                # Log error but continue processing other attacks
-                import logging
-
-                logger = logging.getLogger(__name__)
-                logger.warning(f"Failed to store attack history {attack.id}: {e}")
+                logger.warning("Failed to store attack history %s: %s", attack.id, e)
                 continue
 
     def initialize_default_patterns(self) -> None:
@@ -162,6 +373,7 @@ class AttackFeedFetcher:
     def close(self) -> None:
         """Close HTTP clients"""
         self.github_client.close()
+        self.osv_client.close()
 
     def __enter__(self) -> "AttackFeedFetcher":
         return self

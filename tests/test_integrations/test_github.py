@@ -210,32 +210,31 @@ def test_get_repository_tags(github_client):
         mock_get.assert_called_once()
 
 
-def test_check_repository_transfer_success(github_client):
-    """Test checking repository transfer - tests lines 123-138"""
-    with patch.object(github_client, 'get_repository') as mock_get_repo:
+def test_check_repository_transfer_no_transfer(github_client):
+    """Test when repo has NOT been transferred (owner matches)"""
+    with patch.object(github_client, 'get_repository') as mock_get_repo, \
+         patch.object(github_client, 'get_repository_events', return_value=[]):
         mock_get_repo.return_value = {
             "created_at": "2023-01-01T00:00:00Z",
-            "owner": {"login": "current-owner"},
+            "owner": {"login": "owner"},
         }
-        
+
         result = github_client.check_repository_transfer("owner", "repo")
-        
-        # Should return False (heuristic always returns False)
+
         assert result is False
         mock_get_repo.assert_called_once()
 
 
-def test_check_repository_transfer_no_created_at(github_client):
-    """Test checking repository transfer without created_at - tests line 136"""
+def test_check_repository_transfer_owner_mismatch(github_client):
+    """Test when repo HAS been transferred (owner differs)"""
     with patch.object(github_client, 'get_repository') as mock_get_repo:
         mock_get_repo.return_value = {
-            "owner": {"login": "current-owner"},
-            # No created_at
+            "owner": {"login": "new-owner"},
         }
-        
-        result = github_client.check_repository_transfer("owner", "repo")
-        
-        assert result is False
+
+        result = github_client.check_repository_transfer("original-owner", "repo")
+
+        assert result is True
 
 
 def test_check_repository_transfer_exception(github_client):

@@ -1,5 +1,6 @@
 """Package abstraction and parsing"""
 
+import logging
 import re
 from typing import NamedTuple
 
@@ -8,6 +9,8 @@ from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 
 from provchain.data.models import PackageIdentifier
+
+logger = logging.getLogger(__name__)
 
 
 class PackageSpec(NamedTuple):
@@ -57,6 +60,9 @@ def parse_package_spec(spec: str) -> PackageSpec:
             # Multiple specifiers, use the full specifier string
             return PackageSpec(name=req.name, specifier=str(req.specifier))
     except Exception:
+        logger.debug(
+            "Failed to parse package spec '%s' with packaging library, using fallback", spec
+        )
         # Fallback: simple name extraction
         # Match package name (alphanumeric, underscore, hyphen, dot)
         match = re.match(r"^([a-zA-Z0-9_.-]+)(.*)$", spec)
@@ -118,5 +124,5 @@ def version_satisfies(version: str, specifier: str) -> bool:
         v = Version(version)
         spec = SpecifierSet(specifier)
         return v in spec
-    except Exception:
+    except (ValueError, TypeError):
         return False

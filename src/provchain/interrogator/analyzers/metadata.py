@@ -1,9 +1,12 @@
 """Package metadata quality analyzer"""
 
+import logging
 from urllib.parse import urlparse
 
 from provchain.data.models import AnalysisResult, Finding, PackageMetadata, RiskLevel
 from provchain.interrogator.analyzers.base import BaseAnalyzer
+
+logger = logging.getLogger(__name__)
 
 
 class MetadataAnalyzer(BaseAnalyzer):
@@ -37,7 +40,7 @@ class MetadataAnalyzer(BaseAnalyzer):
         try:
             result = urlparse(url)
             return all([result.scheme, result.netloc])
-        except Exception:
+        except (ValueError, TypeError):
             return False
 
     def analyze(self, package_metadata: PackageMetadata) -> AnalysisResult:

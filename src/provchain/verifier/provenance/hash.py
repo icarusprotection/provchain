@@ -1,10 +1,50 @@
 """Hash verification"""
 
+import re
 from pathlib import Path
 from typing import Any
 
 from provchain.integrations.pypi import PyPIClient
 from provchain.utils.hashing import calculate_hash
+
+# PEP 427 wheel filename: {distribution}-{version}(-{build})?-{python}-{abi}-{platform}.whl
+# The version is the first component that starts with a digit.
+_WHEEL_RE = re.compile(
+    r"^(?P<name>[A-Za-z0-9](?:[A-Za-z0-9._]*[A-Za-z0-9])?)"
+    r"-(?P<version>\d[A-Za-z0-9._]*)"
+    r"(?:-\d[A-Za-z0-9._]*)?"  # optional build tag
+    r"-[A-Za-z0-9._]+-[A-Za-z0-9._]+-[A-Za-z0-9._]+\.whl$"
+)
+
+# sdist filename: {name}-{version}.tar.gz  or  {name}-{version}.zip
+_SDIST_RE = re.compile(r"^(?P<name>.+)-(?P<version>\d[A-Za-z0-9._]*)\.(?:tar\.gz|zip)$")
+
+# Fallback: simple {name}-{version}.whl when the full PEP 427 pattern doesn't match
+# (e.g. filenames without python/abi/platform tags)
+_SIMPLE_WHL_RE = re.compile(r"^(?P<name>.+)-(?P<version>\d[A-Za-z0-9._]*)\.whl$")
+
+
+def _parse_artifact_filename(filename: str) -> tuple[str, str] | None:
+    """Parse package name and version from a PyPI artifact filename.
+
+    Handles wheels (PEP 427) and sdists.  Returns (name, version) or None.
+    """
+    m = _WHEEL_RE.match(filename)
+    if m:
+        # Wheel names use underscores; normalise back to hyphens for PyPI lookup
+        name = m.group("name").replace("_", "-")
+        return name, m.group("version")
+
+    m = _SDIST_RE.match(filename)
+    if m:
+        return m.group("name"), m.group("version")
+
+    m = _SIMPLE_WHL_RE.match(filename)
+    if m:
+        name = m.group("name").replace("_", "-")
+        return name, m.group("version")
+
+    return None
 
 
 class HashVerifier:
@@ -15,15 +55,11 @@ class HashVerifier:
         artifact_path = Path(artifact_path)
 
         # Extract package name and version from artifact filename
-        # This is simplified - production would need proper parsing
         filename = artifact_path.name
-        # Assume format: package-version.whl or package-version.tar.gz
-        parts = filename.replace(".whl", "").replace(".tar.gz", "").split("-")
-        if len(parts) >= 2:
-            package_name = "-".join(parts[:-1])
-            version = parts[-1]
-        else:
+        parsed = _parse_artifact_filename(filename)
+        if not parsed:
             return {"error": "Could not parse package name and version from filename"}
+        package_name, version = parsed
 
         # Calculate hash
         try:

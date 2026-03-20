@@ -136,6 +136,7 @@ class SigstoreVerifier:
                 try:
                     bundle = Bundle.from_json(sig_path.read_text(encoding="utf-8"))
                 except Exception:
+                    logger.debug("Failed to parse Sigstore bundle from %s", sig_path, exc_info=True)
                     return {
                         "available": True,
                         "status": "unsupported_format",

@@ -1,11 +1,14 @@
 """Repository monitor"""
 
+import logging
 import uuid
 from datetime import timedelta
 
 from provchain.data.db import Database
 from provchain.data.models import Alert, PackageIdentifier, RiskLevel
 from provchain.integrations.github import GitHubClient
+
+logger = logging.getLogger(__name__)
 
 
 class RepositoryMonitor:
@@ -45,7 +48,6 @@ class RepositoryMonitor:
 
             github.close()
         except Exception:
-            # Repository check failed, skip
-            pass
+            logger.warning("Repository check failed for %s", repo_url, exc_info=True)
 
         return alerts

@@ -20,43 +20,53 @@ def test_release_monitor_init(temp_db):
 
 @pytest.mark.asyncio
 async def test_release_monitor_check_no_new_release(temp_db):
-    """Test release monitor with no new release"""
+    """Test release monitor with no new release (same version as stored)"""
     monitor = ReleaseMonitor(temp_db)
-    
+
     with patch('provchain.watchdog.monitors.release.PyPIClient') as mock_pypi_class:
         mock_pypi = Mock()
         mock_package_info = Mock()
         mock_package_info.identifier.version = "2.31.0"
-        mock_package_info.latest_release = datetime.now(timezone.utc) - timedelta(days=2)
         mock_pypi.get_package_info.return_value = mock_package_info
         mock_pypi_class.return_value.__enter__.return_value = mock_pypi
         mock_pypi_class.return_value.__exit__.return_value = None
-        
+
+        # First call bootstraps
         alerts = await monitor.check("requests")
-        
+        assert len(alerts) == 0
+
+        # Second call with same version — no alerts
+        alerts = await monitor.check("requests")
         assert len(alerts) == 0
 
 
 @pytest.mark.asyncio
 async def test_release_monitor_check_new_release(temp_db):
-    """Test release monitor with new release"""
+    """Test release monitor detects version change"""
     monitor = ReleaseMonitor(temp_db)
-    
+
     with patch('provchain.watchdog.monitors.release.PyPIClient') as mock_pypi_class:
         mock_pypi = Mock()
-        mock_package_info = Mock()
-        mock_package_info.identifier.version = "2.32.0"
-        # Very recent release (within last hour)
-        mock_package_info.latest_release = datetime.now(timezone.utc) - timedelta(minutes=30)
-        mock_pypi.get_package_info.return_value = mock_package_info
         mock_pypi_class.return_value.__enter__.return_value = mock_pypi
         mock_pypi_class.return_value.__exit__.return_value = None
-        
+
+        # Bootstrap with initial version
+        mock_package_info_v1 = Mock()
+        mock_package_info_v1.identifier.version = "2.31.0"
+        mock_pypi.get_package_info.return_value = mock_package_info_v1
         alerts = await monitor.check("requests")
-        
+        assert len(alerts) == 0  # Bootstrap — no alerts
+
+        # Now simulate a new release
+        mock_package_info_v2 = Mock()
+        mock_package_info_v2.identifier.version = "2.32.0"
+        mock_pypi.get_package_info.return_value = mock_package_info_v2
+        alerts = await monitor.check("requests")
+
         assert len(alerts) > 0
         assert alerts[0].alert_type == "new_release"
         assert "2.32.0" in alerts[0].title
+        assert "2.31.0" in alerts[0].description
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,10 @@
 """Version parsing and comparison utilities"""
 
+import logging
+
 from packaging.version import Version, parse
+
+logger = logging.getLogger(__name__)
 
 
 def parse_version(version_str: str) -> Version:
@@ -32,5 +36,5 @@ def is_valid_version(version_str: str) -> bool:
     try:
         parse_version(version_str)
         return True
-    except Exception:
+    except (ValueError, TypeError):
         return False

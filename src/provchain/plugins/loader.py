@@ -3,9 +3,12 @@
 import importlib
 import importlib.util
 import inspect
+import logging
 from pathlib import Path
 
 from provchain.plugins.interface import AnalyzerPlugin, ReporterPlugin
+
+logger = logging.getLogger(__name__)
 
 
 class PluginLoader:
@@ -41,8 +44,7 @@ class PluginLoader:
                                     reporter_plugin = obj()
                                     self.reporters[reporter_plugin.name] = reporter_plugin
                 except Exception:
-                    # Plugin load failed, skip
-                    pass
+                    logger.warning("Failed to load plugin from %s", file_path, exc_info=True)
 
     def get_analyzer(self, name: str) -> AnalyzerPlugin | None:
         """Get analyzer plugin by name"""

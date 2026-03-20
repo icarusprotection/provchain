@@ -6,6 +6,12 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Timeout for traced operations (seconds).
+# Install-phase tracing may take longer (compiling C extensions, downloading
+# dependencies), while import-phase tracing should be fast.
+INSTALL_TRACE_TIMEOUT = 600  # 10 minutes
+IMPORT_TRACE_TIMEOUT = 120  # 2 minutes
+
 
 def check_docker_available() -> bool:
     """Check if Docker is available"""
@@ -98,7 +104,15 @@ class SandboxContainer:
         ]
 
         logger.info("Installing package %s in container", package_spec)
-        subprocess.run(cmd, capture_output=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=INSTALL_TRACE_TIMEOUT)
+        if result.returncode != 0:
+            logger.error(
+                "pip install failed for %s (exit %d): %s",
+                package_spec,
+                result.returncode,
+                result.stderr[:500],
+            )
+            raise RuntimeError(f"pip install failed for {package_spec}: {result.stderr[:200]}")
 
     def install_package_with_tracing(self, package_name: str, version: str | None = None) -> str:
         """Install package with strace tracing around pip install.
@@ -128,7 +142,23 @@ class SandboxContainer:
         ]
 
         logger.info("Installing package %s with tracing", package_spec)
-        result = subprocess.run(trace_cmd, capture_output=True, text=True)
+        try:
+            result = subprocess.run(
+                trace_cmd, capture_output=True, text=True, timeout=INSTALL_TRACE_TIMEOUT
+            )
+        except subprocess.TimeoutExpired:
+            logger.error(
+                "Install tracing timed out after %ds for %s", INSTALL_TRACE_TIMEOUT, package_spec
+            )
+            raise RuntimeError(
+                f"Install tracing timed out after {INSTALL_TRACE_TIMEOUT}s for {package_spec}"
+            )
+        if result.returncode != 0:
+            logger.warning(
+                "Traced install exited with code %d for %s (may include strace errors)",
+                result.returncode,
+                package_spec,
+            )
         return result.stdout + result.stderr
 
     def run_with_tracing(self, command: list[str]) -> str:
@@ -155,7 +185,13 @@ class SandboxContainer:
         trace_cmd = ["strace", "-f", "-e", "trace=network,file,process"] + command
         cmd = ["docker", "exec", self.container_id] + trace_cmd
 
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=IMPORT_TRACE_TIMEOUT
+            )
+        except subprocess.TimeoutExpired:
+            logger.error("Import tracing timed out after %ds", IMPORT_TRACE_TIMEOUT)
+            raise RuntimeError(f"Import tracing timed out after {IMPORT_TRACE_TIMEOUT}s")
         return result.stdout + result.stderr
 
     def cleanup(self) -> None:

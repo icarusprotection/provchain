@@ -199,8 +199,8 @@ class PyPIClient:
         first_release = min(release_dates) if release_dates else None
         latest_release = max(release_dates) if release_dates else None
 
-        # Get download count (from PyPI stats API if available)
-        download_count = None
+        # Get download count from pypistats.org API
+        download_count = self._fetch_download_count(package_name)
 
         identifier = PackageIdentifier(ecosystem="pypi", name=package_name, version=version)
 
@@ -217,6 +217,34 @@ class PyPIClient:
             download_count=download_count,
         )
 
+    def _fetch_download_count(self, package_name: str) -> int | None:
+        """Fetch recent download count from pypistats.org API."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+        try:
+            from urllib.parse import quote
+
+            safe_name = quote(package_name, safe="")
+            stats_client = HTTPClient(
+                base_url="https://pypistats.org",
+                rate_limit=30,
+                time_window=60.0,
+                timeout=10.0,
+            )
+            try:
+                response = stats_client.get(f"/api/packages/{safe_name}/recent")
+                data = response.json()
+                if isinstance(data, dict) and "data" in data:
+                    last_month = data["data"].get("last_month")
+                    if isinstance(last_month, int):
+                        return last_month
+            finally:
+                stats_client.close()
+        except Exception:
+            logger.debug("Could not fetch download count for %s", package_name)
+        return None
+
     def get_version_list(self, package_name: str) -> list[str]:
         """Get list of all versions for a package"""
         data = self.get_package_metadata(package_name)
@@ -224,10 +252,61 @@ class PyPIClient:
         return sorted(releases.keys(), reverse=True)
 
     def search_packages(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
-        """Search for packages on PyPI"""
-        # Note: This is a simplified search - PyPI's search API is limited
-        # For production, consider using the XML-RPC API or web scraping
-        return []
+        """Search for packages on PyPI using the JSON API.
+
+        PyPI deprecated their XML-RPC search endpoint. This method attempts to
+        fetch the exact package first, then tries common variations (hyphen/
+        underscore/prefix/suffix) to approximate a search.
+        """
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        if not query or not isinstance(query, str):
+            return []
+
+        results: list[dict[str, Any]] = []
+        seen: set[str] = set()
+
+        # Normalise the query for candidate generation
+        normalised = query.strip().lower()
+
+        # Build candidate names: exact match + common variations
+        candidates = [normalised]
+        # Swap hyphens/underscores
+        if "-" in normalised:
+            candidates.append(normalised.replace("-", "_"))
+        if "_" in normalised:
+            candidates.append(normalised.replace("_", "-"))
+        # Common typosquat-style prefixes/suffixes (useful for security tooling)
+        for prefix in ("python-", "py-", "py"):
+            if not normalised.startswith(prefix):
+                candidates.append(f"{prefix}{normalised}")
+        for suffix in ("-python", "-py"):
+            if not normalised.endswith(suffix):
+                candidates.append(f"{normalised}{suffix}")
+
+        for candidate in candidates:
+            if len(results) >= limit:
+                break
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            try:
+                data = self.get_package_metadata(candidate)
+                info = data.get("info", {})
+                results.append(
+                    {
+                        "name": info.get("name", candidate),
+                        "version": info.get("version"),
+                        "summary": info.get("summary"),
+                    }
+                )
+            except Exception:
+                # Package doesn't exist or API error — skip silently
+                logger.debug("search_packages: candidate %s not found", candidate)
+
+        return results[:limit]
 
     def close(self) -> None:
         """Close the HTTP client"""

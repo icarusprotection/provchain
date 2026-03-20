@@ -178,7 +178,11 @@ class CVSSCalculator:
     def calculate_environmental_score(
         base_score: float, temporal_score: float | None, metrics: dict[str, str]
     ) -> float:
-        """Calculate CVSS v3.1 environmental score
+        """Calculate CVSS v3.1 environmental score using Modified Base Metrics.
+
+        When modified metrics (MAV, MAC, MPR, MUI, MS, MC, MI, MA) are present,
+        re-derives the base score with those overrides, then applies temporal
+        multipliers.  "X" (Not Defined) means "use the original base metric".
 
         Args:
             base_score: Base score
@@ -188,11 +192,80 @@ class CVSSCalculator:
         Returns:
             Environmental score (0.0 to 10.0)
         """
-        # Simplified environmental score calculation
-        # Full implementation would consider modified base metrics
-        if temporal_score is not None:
-            return temporal_score
-        return base_score
+        # If no modified metrics are present, fall back to temporal or base
+        modified_keys = {"MAV", "MAC", "MPR", "MUI", "MS", "MC", "MI", "MA"}
+        has_modified = any(k in metrics and metrics[k] != "X" for k in modified_keys)
+        if not has_modified:
+            if temporal_score is not None:
+                return temporal_score
+            return base_score
+
+        # Resolve each modified metric: use modified value if present and != "X",
+        # otherwise fall back to the corresponding base metric.
+        def _resolve(modified_key: str, base_key: str, default: str) -> str:
+            val = metrics.get(modified_key, "X")
+            if val != "X":
+                return val
+            return metrics.get(base_key, default)
+
+        av = _resolve("MAV", "AV", "N")
+        ac = _resolve("MAC", "AC", "L")
+        pr = _resolve("MPR", "PR", "N")
+        ui = _resolve("MUI", "UI", "N")
+        s = _resolve("MS", "S", "U")
+        c = _resolve("MC", "C", "N")
+        i = _resolve("MI", "I", "N")
+        a = _resolve("MA", "A", "N")
+
+        # Look up metric values
+        attack_vector = CVSSCalculator.ATTACK_VECTOR.get(av, 0.85)
+        attack_complexity = CVSSCalculator.ATTACK_COMPLEXITY.get(ac, 0.77)
+        user_interaction = CVSSCalculator.USER_INTERACTION.get(ui, 0.85)
+
+        if s == "C":
+            privileges_required = CVSSCalculator.PRIVILEGES_REQUIRED_SCOPE_CHANGED.get(pr, 0.85)
+        else:
+            privileges_required = CVSSCalculator.PRIVILEGES_REQUIRED.get(pr, 0.85)
+
+        impact_conf = CVSSCalculator.IMPACT.get(c, 0.0)
+        impact_integrity = CVSSCalculator.IMPACT.get(i, 0.0)
+        impact_avail = CVSSCalculator.IMPACT.get(a, 0.0)
+
+        # Modified Impact Sub Score
+        miss = 1 - ((1 - impact_conf) * (1 - impact_integrity) * (1 - impact_avail))
+
+        # Modified Impact
+        if s == "C":
+            modified_impact = 7.52 * (miss - 0.029) - 3.25 * (miss - 0.02) ** 15
+        else:
+            modified_impact = 6.42 * miss
+
+        # Modified Exploitability
+        modified_exploitability = (
+            8.22 * attack_vector * attack_complexity * privileges_required * user_interaction
+        )
+
+        # Modified Base Score
+        if modified_impact <= 0:
+            modified_base = 0.0
+        elif s == "C":
+            modified_base = min(1.08 * (modified_impact + modified_exploitability), 10.0)
+        else:
+            modified_base = min(modified_impact + modified_exploitability, 10.0)
+
+        modified_base = round(modified_base, 1)
+
+        # Apply temporal multipliers
+        e = metrics.get("E", "X")
+        rl = metrics.get("RL", "X")
+        rc = metrics.get("RC", "X")
+
+        exploit_maturity = CVSSCalculator.EXPLOIT_CODE_MATURITY.get(e, 1.0)
+        remediation_level = CVSSCalculator.REMEDIATION_LEVEL.get(rl, 1.0)
+        report_confidence = CVSSCalculator.REPORT_CONFIDENCE.get(rc, 1.0)
+
+        env_score = modified_base * exploit_maturity * remediation_level * report_confidence
+        return round(env_score, 1)
 
     @staticmethod
     def score_to_severity(score: float) -> RiskLevel:
@@ -283,12 +356,23 @@ class CVSSCalculator:
                 if "score" in severity and "CVSS:3.1" in severity.get("type", ""):
                     return str(severity.get("score", ""))
 
-        # Check references for CVSS links
+        # Check references for CVSS vector strings embedded in URLs
         if "references" in vuln_data:
+            import re
+
+            cvss_vector_re = re.compile(r"CVSS:3\.[01]/[A-Za-z:/]+")
             for ref in vuln_data["references"]:
                 url = ref.get("url", "")
-                if "cvss" in url.lower():
-                    # Try to extract from URL or fetch
-                    pass
+                m = cvss_vector_re.search(url)
+                if m:
+                    return m.group(0)
+
+        # Check 'severity' field with type CVSS_V3 (used by some OSV entries)
+        if "severity" in vuln_data:
+            for sev in vuln_data["severity"]:
+                sev_type = sev.get("type", "")
+                score_val = sev.get("score", "")
+                if "CVSS" in sev_type and isinstance(score_val, str) and "CVSS:3" in score_val:
+                    return score_val
 
         return None

@@ -1,11 +1,14 @@
 """GitHub API client"""
 
+import logging
 from datetime import datetime
 from typing import Any
 from urllib.parse import urlparse
 
 from provchain.data.cache import Cache
 from provchain.utils.network import HTTPClient
+
+logger = logging.getLogger(__name__)
 
 
 class GitHubClient:
@@ -253,21 +256,68 @@ class GitHubClient:
         response = self.client.get(url, params=params)
         return response.json()
 
+    def get_repository_events(self, owner: str, repo: str, limit: int = 30) -> list[dict[str, Any]]:
+        """Get repository events"""
+        url = f"/repos/{owner}/{repo}/events"
+        params = {"per_page": min(limit, 100)}
+        response = self.client.get(url, params=params)
+        data = response.json()
+        return data if isinstance(data, list) else []
+
     def check_repository_transfer(self, owner: str, repo: str) -> bool:
-        """Check if repository was recently transferred"""
+        """Check if repository was recently transferred.
+
+        Uses two heuristics:
+        1. Checks the repo events API for 'TransferEvent' entries.
+        2. Compares the repo's current owner login against the requested
+           owner — a mismatch after a redirect indicates a transfer.
+
+        Returns True if a transfer is detected.
+        """
         try:
             repo_data = self.get_repository(owner, repo)
-            # Check repository creation date vs current owner
-            # If owner changed recently, this might indicate a transfer
-            # Note: GitHub API doesn't directly expose transfer history,
-            # but we can check if the current owner matches expected patterns
-            created_at = repo_data.get("created_at")
-            if created_at:
-                # If repo is very new but owner has old account, might be transferred
-                # This is a heuristic - full transfer detection would need events API
-                return False  # No direct way to detect without events API
+
+            # Heuristic 1: Owner mismatch — GitHub follows repo redirects,
+            # so if the repo was transferred from owner A to owner B, a
+            # request for A/repo will return data with owner.login == B.
+            actual_owner = repo_data.get("owner", {}).get("login", "")
+            if actual_owner and actual_owner.lower() != owner.lower():
+                logger.info(
+                    "Repository %s/%s appears transferred to %s",
+                    owner,
+                    repo,
+                    actual_owner,
+                )
+                return True
+
+            # Heuristic 2: Check events API for transfer events (last 90 days
+            # of events are available via the REST API).
+            try:
+                events = self.get_repository_events(owner, repo, limit=100)
+                for event in events:
+                    if event.get("type") == "TransferEvent":
+                        return True
+                    # A "fork" of the entire repo by a different owner that
+                    # then replaces the original can also show as
+                    # MemberEvent with admin permission changes.
+                    if event.get("type") == "MemberEvent":
+                        payload = event.get("payload", {})
+                        if payload.get("action") == "added" and payload.get("member", {}).get(
+                            "permissions", {}
+                        ).get("admin"):
+                            logger.debug(
+                                "Admin member added to %s/%s — possible transfer indicator",
+                                owner,
+                                repo,
+                            )
+            except Exception:
+                # Events API may fail (e.g. private repo, rate limited);
+                # fall back to owner-mismatch check only.
+                logger.debug("Could not fetch events for %s/%s", owner, repo, exc_info=True)
+
             return False
         except Exception:
+            logger.debug("Repository transfer check failed for %s/%s", owner, repo, exc_info=True)
             return False
 
     def close(self) -> None:

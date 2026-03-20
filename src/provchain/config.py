@@ -1,8 +1,11 @@
 """Configuration management"""
 
 import copy
+import logging
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 try:
     import tomllib as tomli  # type: ignore[import-not-found]  # Python 3.11+ built-in
@@ -75,7 +78,7 @@ class Config:
                     self._merge_config(self.config, file_config)
             except Exception:
                 # File read failed, use defaults
-                pass
+                logger.warning("Failed to load config from %s", self.config_path, exc_info=True)
 
         # Also check environment variables
         import os

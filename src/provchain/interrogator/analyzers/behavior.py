@@ -223,7 +223,10 @@ class BehaviorAnalyzer(BaseAnalyzer):
 
             # Phase 2: Import with tracing and network isolation
             logger.info("Phase 2: Tracing import for %s", package_name)
-            import_trace = container.run_with_tracing(["python", "-c", f"import {package_name}"])
+            # Convert hyphenated package names to valid Python import names
+            # e.g. "requests-oauthlib" -> "requests_oauthlib"
+            import_name = package_name.replace("-", "_")
+            import_trace = container.run_with_tracing(["python", "-c", f"import {import_name}"])
             import_data = tracer.parse_trace(import_trace)
             import_classified = tracer.analyze_behavior(import_data, is_install_phase=False)
             import_findings = self._convert_classified_findings(import_classified, "import")
@@ -351,7 +354,8 @@ class BehaviorAnalyzer(BaseAnalyzer):
 
                         try:
                             content = py_file.read_text(encoding="utf-8", errors="ignore")
-                        except Exception:
+                        except OSError:
+                            logger.debug("Could not read file %s, skipping", py_file)
                             continue
 
                         relative_path = py_file.relative_to(extract_dir)

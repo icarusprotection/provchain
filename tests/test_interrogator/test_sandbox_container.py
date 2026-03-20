@@ -106,11 +106,15 @@ class TestSandboxContainer:
         """Test successful package installation"""
         with patch('provchain.interrogator.sandbox.container.check_docker_available', return_value=True), \
              patch('subprocess.run') as mock_run:
+            mock_result = Mock()
+            mock_result.returncode = 0
+            mock_result.stderr = ""
+            mock_run.return_value = mock_result
             container = SandboxContainer()
             container.container_id = "container-id-123"
-            
+
             container.install_package("requests", "2.31.0")
-            
+
             mock_run.assert_called_once()
             call_args = mock_run.call_args
             assert call_args[0][0][0] == "docker"
@@ -124,11 +128,15 @@ class TestSandboxContainer:
         """Test package installation without version"""
         with patch('provchain.interrogator.sandbox.container.check_docker_available', return_value=True), \
              patch('subprocess.run') as mock_run:
+            mock_result = Mock()
+            mock_result.returncode = 0
+            mock_result.stderr = ""
+            mock_run.return_value = mock_result
             container = SandboxContainer()
             container.container_id = "container-id-123"
-            
+
             container.install_package("requests")
-            
+
             mock_run.assert_called_once()
             call_args = mock_run.call_args
             assert "requests" in call_args[0][0]

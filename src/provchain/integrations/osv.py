@@ -1,11 +1,14 @@
 """OSV.dev API client for vulnerability data"""
 
+import logging
 from datetime import datetime, timedelta
 from typing import Any
 
 from provchain.data.cache import Cache
 from provchain.data.models import PackageIdentifier, RiskLevel, Vulnerability
 from provchain.utils.network import HTTPClient
+
+logger = logging.getLogger(__name__)
 
 
 class OSVClient:
@@ -226,6 +229,7 @@ class OSVClient:
 
             return vulnerabilities
         except Exception:
+            logger.warning("Failed to query OSV by commit %s", commit_hash, exc_info=True)
             return []
 
     def parse_vulnerability(

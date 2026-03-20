@@ -126,7 +126,7 @@ class InstallHookAnalyzer(BaseAnalyzer):
         findings: list[Finding] = []
 
         try:
-            import tomllib as tomli  # type: ignore[import-not-found]  # Python 3.11+
+            import tomllib as tomli  # type: ignore[import-not-found,unused-ignore]  # Python 3.11+
         except ImportError:
             try:
                 import tomli  # type: ignore[import-not-found,unused-ignore]  # Backport for < 3.11
@@ -158,6 +158,83 @@ class InstallHookAnalyzer(BaseAnalyzer):
                     evidence=[f"File: {file_path.name}"],
                 )
             )
+
+        return findings
+
+    def analyze_setup_cfg(self, file_path: Path) -> list[Finding]:
+        """Analyze setup.cfg for suspicious build hooks and cmdclass overrides."""
+        import configparser
+
+        findings: list[Finding] = []
+
+        try:
+            with open(file_path, encoding="utf-8") as f:
+                content = f.read()
+        except (OSError, UnicodeDecodeError) as exc:
+            logger.warning("Could not read %s: %s", file_path, exc)
+            return findings
+
+        cfg = configparser.ConfigParser()
+        try:
+            cfg.read_string(content, source=str(file_path))
+        except configparser.Error as exc:
+            logger.warning("Invalid setup.cfg %s: %s", file_path, exc)
+            return findings
+
+        # 1. cmdclass overrides — can run arbitrary code during install/build
+        if cfg.has_option("options", "cmdclass"):
+            findings.append(
+                Finding(
+                    id="install_hook_setup_cfg_cmdclass",
+                    title="Custom cmdclass in setup.cfg",
+                    description=(
+                        "setup.cfg defines cmdclass overrides, which can execute "
+                        "arbitrary code during install/build/develop commands"
+                    ),
+                    severity=RiskLevel.HIGH,
+                    evidence=[
+                        f"File: {file_path.name}",
+                        f"Value: {cfg.get('options', 'cmdclass')}",
+                    ],
+                    remediation="Inspect the referenced command classes for malicious behaviour",
+                )
+            )
+
+        # 2. console_scripts / gui_scripts entry points — less risky but worth noting
+        for section in ("options.entry_points", "entry_points"):
+            if cfg.has_section(section):
+                for key in cfg.options(section):
+                    value = cfg.get(section, key)
+                    # Flag entry points that reference unusual modules
+                    for pattern, desc in self.DANGEROUS_PATTERNS:
+                        if re.search(pattern, value, re.IGNORECASE):
+                            findings.append(
+                                Finding(
+                                    id=f"install_hook_setup_cfg_entrypoint_{key}",
+                                    title=f"Suspicious entry point in setup.cfg: {key}",
+                                    description=(
+                                        f"Entry point '{key}' references code matching "
+                                        f"suspicious pattern: {desc}"
+                                    ),
+                                    severity=RiskLevel.MEDIUM,
+                                    evidence=[f"File: {file_path.name}", f"Entry: {key} = {value}"],
+                                    remediation="Verify entry point target is not malicious",
+                                )
+                            )
+
+        # 3. Scan the raw content for dangerous patterns (e.g. exec/eval in values)
+        for pattern, description in self.DANGEROUS_PATTERNS:
+            if re.search(pattern, content, re.IGNORECASE):
+                findings.append(
+                    Finding(
+                        id=f"install_hook_setup_cfg_{pattern.replace(chr(92), '_')}",
+                        title=f"Suspicious pattern in setup.cfg: {description}",
+                        description=f"Found {description} in {file_path.name}",
+                        severity=RiskLevel.HIGH,
+                        evidence=[f"File: {file_path.name}", f"Pattern: {pattern}"],
+                        remediation="Review setup.cfg for malicious code",
+                    )
+                )
 
         return findings
 
@@ -303,8 +380,16 @@ class InstallHookAnalyzer(BaseAnalyzer):
                     # Analyze setup.cfg
                     setup_cfg = package_dir / "setup.cfg"
                     if setup_cfg.exists():
-                        # Basic check for setup.cfg (could be enhanced)
-                        pass
+                        cfg_findings = self.analyze_setup_cfg(setup_cfg)
+                        findings.extend(cfg_findings)
+                        risk_score += sum(
+                            2.0
+                            if f.severity == RiskLevel.CRITICAL
+                            else 1.0
+                            if f.severity == RiskLevel.HIGH
+                            else 0.5
+                            for f in cfg_findings
+                        )
 
                     confidence = 0.8 if findings else 0.9
 

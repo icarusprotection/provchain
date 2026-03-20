@@ -225,9 +225,14 @@ def test_pypi_client_get_package_info_no_upload_time(pypi_client):
 
 
 def test_pypi_client_search_packages(pypi_client):
-    """Test searching packages - tests lines 118-121"""
-    results = pypi_client.search_packages("requests", limit=10)
-    
-    # Currently returns empty list (simplified implementation)
-    assert results == []
+    """Test searching packages"""
+    with patch.object(pypi_client, 'get_package_metadata') as mock_get:
+        mock_get.return_value = {
+            "info": {"name": "requests", "version": "2.31.0", "summary": "HTTP library"}
+        }
+        results = pypi_client.search_packages("requests", limit=10)
+
+        assert len(results) > 0
+        assert results[0]["name"] == "requests"
+        assert results[0]["version"] == "2.31.0"
 

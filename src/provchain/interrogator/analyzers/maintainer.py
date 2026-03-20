@@ -1,5 +1,6 @@
 """Maintainer trust analyzer"""
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 from provchain.data.models import (
@@ -10,6 +11,8 @@ from provchain.data.models import (
 )
 from provchain.integrations.github import GitHubClient
 from provchain.interrogator.analyzers.base import BaseAnalyzer
+
+logger = logging.getLogger(__name__)
 
 
 class MaintainerAnalyzer(BaseAnalyzer):
@@ -133,8 +136,7 @@ class MaintainerAnalyzer(BaseAnalyzer):
 
                     github.close()
                 except Exception:
-                    # GitHub API call failed, skip GitHub analysis
-                    pass
+                    logger.warning("GitHub API call failed for maintainer analysis", exc_info=True)
 
             # Check email domain
             if maintainer.email:
