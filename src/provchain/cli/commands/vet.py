@@ -164,7 +164,9 @@ def vet(
                 sys.exit(1)
             return
 
-        specs = parse_requirements_file(requirements) if requirements else [parse_package_spec(package)]
+        specs = (
+            parse_requirements_file(requirements) if requirements else [parse_package_spec(package)]
+        )
 
         def analyze_single_remote(spec):
             remote_version = spec.version if spec.version else None
@@ -186,7 +188,9 @@ def vet(
                         total=len(specs),
                     )
                     with concurrent.futures.ThreadPoolExecutor(max_workers=parallel) as executor:
-                        futures = {executor.submit(analyze_single_remote, spec): spec for spec in specs}
+                        futures = {
+                            executor.submit(analyze_single_remote, spec): spec for spec in specs
+                        }
                         for future in concurrent.futures.as_completed(futures):
                             response, report = future.result()
                             responses.append(response)
@@ -264,7 +268,9 @@ def vet(
             error_type = type(exc).__name__
             error_str = str(exc)
             if "HTTP" in error_type and "404" in error_str:
-                console.print(f"[red]Error analyzing {pkg_id.name}: Package not found on PyPI[/red]")
+                console.print(
+                    f"[red]Error analyzing {pkg_id.name}: Package not found on PyPI[/red]"
+                )
             elif "HTTP" in error_type or "Connection" in error_type or "Timeout" in error_type:
                 console.print(f"[red]Error analyzing {pkg_id.name}: Network error[/red]")
                 console.print(f"[yellow]Details: {error_str}[/yellow]")
@@ -294,8 +300,7 @@ def vet(
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=parallel) as executor:
                 local_futures = {
-                    executor.submit(analyze_single_package, pkg): pkg
-                    for pkg in packages_to_analyze
+                    executor.submit(analyze_single_package, pkg): pkg for pkg in packages_to_analyze
                 }
 
                 for future in concurrent.futures.as_completed(local_futures):

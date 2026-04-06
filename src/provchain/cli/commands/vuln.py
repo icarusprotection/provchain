@@ -84,9 +84,7 @@ def scan(
             severity_level = RiskLevel(severity.lower())
         except ValueError:
             valid = ", ".join(r.value for r in RiskLevel)
-            console.print(
-                f"[red]Error:[/red] Invalid severity '{severity}'. Valid values: {valid}"
-            )
+            console.print(f"[red]Error:[/red] Invalid severity '{severity}'. Valid values: {valid}")
             raise typer.Exit(1)
         filtered_results = []
         for result in results:
@@ -124,7 +122,9 @@ def scan(
                         "locations": [
                             {
                                 "physicalLocation": {
-                                    "artifactLocation": {"uri": f"{r.package.name}=={r.package.version}"}
+                                    "artifactLocation": {
+                                        "uri": f"{r.package.name}=={r.package.version}"
+                                    }
                                 }
                             }
                         ],
@@ -219,9 +219,7 @@ def check(
             error_str = str(e)
             if "HTTP" in error_type and "404" in error_str:
                 console.print(f"[red]Error: Package not found on PyPI: {spec.name}[/red]")
-                console.print(
-                    "[yellow]Tip: Verify the package name is correct[/yellow]"
-                )
+                console.print("[yellow]Tip: Verify the package name is correct[/yellow]")
             elif "HTTP" in error_type or "Connection" in error_type or "Timeout" in error_type:
                 console.print("[red]Error: Network error while fetching package information[/red]")
                 console.print(f"[yellow]Details: {error_str}[/yellow]")
@@ -237,9 +235,7 @@ def check(
             severity_level = RiskLevel(severity.lower())
         except ValueError:
             valid = ", ".join(r.value for r in RiskLevel)
-            console.print(
-                f"[red]Error:[/red] Invalid severity '{severity}'. Valid values: {valid}"
-            )
+            console.print(f"[red]Error:[/red] Invalid severity '{severity}'. Valid values: {valid}")
             raise typer.Exit(1)
         vuln_result.vulnerabilities = [
             v for v in vuln_result.vulnerabilities if v.severity == severity_level

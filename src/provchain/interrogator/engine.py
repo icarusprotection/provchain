@@ -115,7 +115,9 @@ class InterrogatorEngine:
                 with PyPIClient() as pypi:
                     package_metadata = pypi.get_package_info(
                         package_identifier.name,
-                        package_identifier.version if package_identifier.version != "latest" else None,
+                        package_identifier.version
+                        if package_identifier.version != "latest"
+                        else None,
                     )
             except Exception as e:
                 logger.warning("PyPI metadata fetch failed for %s: %s", package_identifier.name, e)
@@ -134,7 +136,9 @@ class InterrogatorEngine:
         # Run analyzers in parallel
         results = []
         if analyzers:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=max(len(analyzers), 1)) as executor:
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=max(len(analyzers), 1)
+            ) as executor:
                 futures = {
                     executor.submit(analyzer.analyze, package_metadata): analyzer
                     for analyzer in analyzers

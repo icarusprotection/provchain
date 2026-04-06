@@ -50,9 +50,7 @@ def load_sbom_from_file(path: str | Path) -> SBOM:
                 ecosystem = "npm"
             elif purl.startswith("pkg:cargo/"):
                 ecosystem = "cargo"
-            packages.append(
-                PackageIdentifier(ecosystem=ecosystem, name=name, version=version)
-            )
+            packages.append(PackageIdentifier(ecosystem=ecosystem, name=name, version=version))
         return SBOM(
             name=data.get("metadata", {}).get("component", {}).get("name", str(path.stem)),
             packages=packages,

@@ -65,9 +65,7 @@ def detect(
             error_str = str(e)
             if "HTTP" in error_type and "404" in error_str:
                 console.print(f"[red]Error: Package not found on PyPI: {spec.name}[/red]")
-                console.print(
-                    "[yellow]Tip: Verify the package name is correct[/yellow]"
-                )
+                console.print("[yellow]Tip: Verify the package name is correct[/yellow]")
             elif "HTTP" in error_type or "Connection" in error_type or "Timeout" in error_type:
                 console.print("[red]Error: Network error while fetching package information[/red]")
                 console.print(f"[yellow]Details: {error_str}[/yellow]")

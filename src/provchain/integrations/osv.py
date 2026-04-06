@@ -326,7 +326,13 @@ class OSVClient:
             List of Vulnerability objects
         """
         # OSV expects capitalised ecosystem names (e.g. "PyPI", not "pypi")
-        ecosystem_map = {"pypi": "PyPI", "npm": "npm", "cargo": "crates.io", "go": "Go", "maven": "Maven"}
+        ecosystem_map = {
+            "pypi": "PyPI",
+            "npm": "npm",
+            "cargo": "crates.io",
+            "go": "Go",
+            "maven": "Maven",
+        }
         ecosystem = ecosystem_map.get(package.ecosystem.lower(), package.ecosystem)
         vuln_data_list = self.query_by_package(package.name, package.version, ecosystem)
 
