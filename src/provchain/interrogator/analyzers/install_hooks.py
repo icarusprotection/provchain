@@ -256,7 +256,11 @@ class InstallHookAnalyzer(BaseAnalyzer):
 
             with PyPIClient() as pypi:
                 metadata = pypi.get_package_metadata(package_name, version)
+                # Version-specific endpoint puts files in "urls"; general
+                # endpoint uses "releases[version]".  Check both.
                 releases = metadata.get("releases", {}).get(version, [])
+                if not releases:
+                    releases = metadata.get("urls", [])
 
                 # Find source distribution
                 sdist = None

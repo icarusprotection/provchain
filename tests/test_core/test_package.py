@@ -94,7 +94,7 @@ def test_package_spec_to_identifier_with_specifier():
     identifier = spec.to_identifier()
     
     assert identifier.name == "requests"
-    assert identifier.version == ">=2.0.0"  # Specifier used as version
+    assert identifier.version == "latest"  # Specifiers resolve to latest
 
 
 def test_package_spec_to_identifier_no_version():

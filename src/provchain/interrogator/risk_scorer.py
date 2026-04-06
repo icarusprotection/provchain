@@ -23,6 +23,8 @@ class RiskScorer:
         "maintainer": 2.0,  # Medium-high impact
         "metadata": 1.0,  # Lower impact
         "install_hooks": 2.5,  # High impact
+        "vulnerability": 3.0,  # High impact - known CVEs
+        "attack": 2.5,  # High impact - attack pattern detection
         "behavior": 3.0,  # High impact
     }
 
@@ -56,12 +58,18 @@ class RiskScorer:
                 if finding.severity == RiskLevel.CRITICAL:
                     flags.append(f"CRITICAL: {finding.title}")
 
-        # Normalize score (divide by sum of weights)
+        # Normalize: use the higher of the weighted average and the
+        # highest single analyzer score.  The weighted average alone
+        # would dilute a serious finding (e.g. 14 known CVEs) when
+        # every other analyzer reports 0.
         total_weight = sum(self.weights.get(r.analyzer, 1.0) for r in results)
         if total_weight > 0:
-            normalized_score = total_score / total_weight
+            weighted_avg = total_score / total_weight
         else:
-            normalized_score = 0.0
+            weighted_avg = 0.0
+
+        max_single = max((r.risk_score for r in results), default=0.0)
+        normalized_score = max(weighted_avg, max_single)
 
         # Average confidence
         avg_confidence = total_confidence / len(results) if results else 0.0

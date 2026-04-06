@@ -55,6 +55,11 @@ class Config:
             "github_token": "",
             "pypi_token": "",
         },
+        "enterprise": {
+            "enabled": False,
+            "api_url": "",
+            "api_key": "",
+        },
     }
 
     def __init__(self, config_path: Path | None = None):
@@ -85,6 +90,12 @@ class Config:
 
         if os.getenv("PROVCHAIN_GITHUB_TOKEN"):
             self.config["integrations"]["github_token"] = os.getenv("PROVCHAIN_GITHUB_TOKEN")
+        if os.getenv("PROVCHAIN_ENTERPRISE_URL"):
+            self.config["enterprise"]["api_url"] = os.getenv("PROVCHAIN_ENTERPRISE_URL")
+        if os.getenv("PROVCHAIN_ENTERPRISE_API_KEY"):
+            self.config["enterprise"]["api_key"] = os.getenv("PROVCHAIN_ENTERPRISE_API_KEY")
+        if self.config["enterprise"]["api_url"] and self.config["enterprise"]["api_key"]:
+            self.config["enterprise"]["enabled"] = True
 
     def _merge_config(self, base: dict[str, Any], override: dict[str, Any]) -> None:
         """Recursively merge configuration"""
@@ -193,6 +204,21 @@ class Config:
         color = self.config.get("output", {}).get("color", True)
         if not isinstance(color, bool):
             errors.append("output.color must be a boolean")
+
+        # Validate enterprise configuration
+        enterprise_enabled = self.config.get("enterprise", {}).get("enabled", False)
+        if not isinstance(enterprise_enabled, bool):
+            errors.append("enterprise.enabled must be a boolean")
+
+        enterprise_url = self.config.get("enterprise", {}).get("api_url", "")
+        if not isinstance(enterprise_url, str):
+            errors.append("enterprise.api_url must be a string")
+        elif enterprise_url and not enterprise_url.startswith(("http://", "https://")):
+            errors.append("enterprise.api_url must start with http:// or https://")
+
+        enterprise_key = self.config.get("enterprise", {}).get("api_key", "")
+        if not isinstance(enterprise_key, str):
+            errors.append("enterprise.api_key must be a string")
 
         if errors:
             error_msg = "Configuration validation failed:\n" + "\n".join(f"  - {e}" for e in errors)

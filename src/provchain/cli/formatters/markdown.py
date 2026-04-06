@@ -36,4 +36,4 @@ def format_markdown(report: VetReport, console: Console) -> None:
         for rec in report.recommendations:
             output += f"- {rec}\n"
 
-    console.print(output)
+    print(output)

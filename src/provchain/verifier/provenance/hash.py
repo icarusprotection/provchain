@@ -71,8 +71,10 @@ class HashVerifier:
         try:
             with PyPIClient() as pypi:
                 metadata = pypi.get_package_metadata(package_name, version)
-                # PyPI JSON API includes file hashes in releases
+                # PyPI JSON API includes file hashes in releases or urls
                 releases = metadata.get("releases", {}).get(version, [])
+                if not releases:
+                    releases = metadata.get("urls", [])
                 for file_info in releases:
                     if file_info.get("filename") == filename:
                         expected_hash = file_info.get("digests", {}).get("sha256")

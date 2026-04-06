@@ -25,9 +25,9 @@ class PackageSpec(NamedTuple):
         if self.version:
             return PackageIdentifier(ecosystem=ecosystem, name=self.name, version=self.version)
         elif self.specifier:
-            # For specifiers, we'll need to resolve the version
-            # For now, use the specifier as version
-            return PackageIdentifier(ecosystem=ecosystem, name=self.name, version=self.specifier)
+            # Version ranges cannot be passed to PyPI as a specific version.
+            # Fetch the latest version and let the caller validate compatibility.
+            return PackageIdentifier(ecosystem=ecosystem, name=self.name, version="latest")
         else:
             # No version specified, use "latest" placeholder
             return PackageIdentifier(ecosystem=ecosystem, name=self.name, version="latest")

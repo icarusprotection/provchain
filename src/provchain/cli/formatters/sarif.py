@@ -49,4 +49,4 @@ def format_sarif(report: VetReport, console: Console) -> None:
                 }
             )
 
-    console.print(json.dumps(sarif, indent=2))
+    print(json.dumps(sarif, indent=2))

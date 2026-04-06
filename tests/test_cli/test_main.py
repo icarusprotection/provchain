@@ -1,10 +1,10 @@
 """Tests for CLI main entry point"""
 
+
 import pytest
 from typer.testing import CliRunner
-from unittest.mock import patch
 
-from provchain.cli.main import app, main
+from provchain.cli.main import app
 
 
 @pytest.fixture
@@ -53,6 +53,20 @@ def test_main_app_config_command(runner):
     result = runner.invoke(app, ["config", "--help"])
     assert result.exit_code == 0
     assert "config" in result.stdout.lower()
+
+
+def test_main_app_login_command(runner):
+    """Test that login command is available"""
+    result = runner.invoke(app, ["login", "--help"])
+    assert result.exit_code == 0
+    assert "api key" in result.stdout.lower() or "enterprise" in result.stdout.lower()
+
+
+def test_main_app_enterprise_command(runner):
+    """Test that enterprise command group is available"""
+    result = runner.invoke(app, ["enterprise", "--help"])
+    assert result.exit_code == 0
+    assert "enterprise" in result.stdout.lower()
 
 
 def test_main_function():

@@ -27,6 +27,8 @@ class ReproducibleBuildChecker:
                 with PyPIClient() as pypi:
                     metadata = pypi.get_package_metadata(package, version)
                     releases = metadata.get("releases", {}).get(version, [])
+                    if not releases:
+                        releases = metadata.get("urls", [])
 
                     sdist = None
                     for file_info in releases:

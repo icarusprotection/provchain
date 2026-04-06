@@ -211,7 +211,7 @@ class PyPIClient:
             repository=info.get("project_url") or info.get("project_urls", {}).get("Source"),
             license=info.get("license"),
             maintainers=maintainers,
-            dependencies=info.get("requires_dist", []),
+            dependencies=info.get("requires_dist") or [],
             first_release=first_release,
             latest_release=latest_release,
             download_count=download_count,

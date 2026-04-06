@@ -62,9 +62,15 @@ def detect(
         except Exception as e:
             # Network or other errors
             error_type = type(e).__name__
-            if "HTTP" in error_type or "Connection" in error_type or "Timeout" in error_type:
+            error_str = str(e)
+            if "HTTP" in error_type and "404" in error_str:
+                console.print(f"[red]Error: Package not found on PyPI: {spec.name}[/red]")
+                console.print(
+                    "[yellow]Tip: Verify the package name is correct[/yellow]"
+                )
+            elif "HTTP" in error_type or "Connection" in error_type or "Timeout" in error_type:
                 console.print("[red]Error: Network error while fetching package information[/red]")
-                console.print(f"[yellow]Details: {str(e)}[/yellow]")
+                console.print(f"[yellow]Details: {error_str}[/yellow]")
                 console.print("[yellow]Tip: Check your internet connection and try again[/yellow]")
             else:
                 console.print(f"[red]Error: Could not analyze package: {str(e)}[/red]")
@@ -78,7 +84,7 @@ def detect(
         import json
 
         output_str = json.dumps(result.model_dump(), indent=2, default=str)
-        console.print(output_str)
+        print(output_str)
     else:
         _display_attack_table(result, detailed)
 
@@ -126,7 +132,7 @@ def history(
         import json
 
         output_str = json.dumps([a.model_dump() for a in attacks], indent=2, default=str)
-        console.print(output_str)
+        print(output_str)
     else:
         _display_attack_history_table(attacks)
 

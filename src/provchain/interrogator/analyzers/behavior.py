@@ -279,6 +279,8 @@ class BehaviorAnalyzer(BaseAnalyzer):
             with PyPIClient() as pypi:
                 metadata = pypi.get_package_metadata(package_name, version)
                 releases = metadata.get("releases", {}).get(version or "", [])
+                if not releases:
+                    releases = metadata.get("urls", [])
 
                 # Find source distribution
                 sdist = None

@@ -177,7 +177,7 @@ class VerifierEngine:
         import importlib.util
 
         package_name = package_identifier.name
-        version = package_identifier.version
+        version = package_identifier.version if package_identifier.version != "latest" else None
 
         results: dict[str, Any] = {
             "package": str(package_identifier),
@@ -213,6 +213,21 @@ class VerifierEngine:
                 "status": "found" if metadata_file.exists() else "not_found",
                 "path": str(metadata_file) if metadata_file.exists() else None,
             }
+
+            # Check installed version matches the requested version
+            if version:
+                dist_info_name = dist_info.name  # e.g. "flask-3.0.0.dist-info"
+                installed_version = dist_info_name.rsplit(".dist-info", 1)[0].split("-", 1)[-1]
+                if installed_version != version:
+                    results["verifications"]["version_mismatch"] = {
+                        "status": "mismatch",
+                        "installed_version": installed_version,
+                        "requested_version": version,
+                        "note": (
+                            f"Installed version ({installed_version}) does not match "
+                            f"the requested version ({version})"
+                        ),
+                    }
 
             record_result = self._verify_record_file(dist_info)
             results["verifications"]["record_integrity"] = record_result

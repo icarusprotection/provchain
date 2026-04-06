@@ -80,7 +80,14 @@ def scan(
 
     # Filter by severity if specified
     if severity:
-        severity_level = RiskLevel(severity.lower())
+        try:
+            severity_level = RiskLevel(severity.lower())
+        except ValueError:
+            valid = ", ".join(r.value for r in RiskLevel)
+            console.print(
+                f"[red]Error:[/red] Invalid severity '{severity}'. Valid values: {valid}"
+            )
+            raise typer.Exit(1)
         filtered_results = []
         for result in results:
             filtered_vulns = [v for v in result.vulnerabilities if v.severity == severity_level]
@@ -101,11 +108,57 @@ def scan(
         if output:
             Path(output).write_text(output_str)
         else:
-            console.print(output_str)
-    elif format in ("sarif", "markdown"):
-        # SARIF and Markdown formats are not yet supported for vulnerability results
-        # Fall back to table format
-        _display_vulnerability_table(results)
+            print(output_str)
+    elif format == "sarif":
+        import json as json_mod
+
+        # Build SARIF directly from vuln results
+        sarif_results_list: list[dict[str, object]] = []
+        for r in results:
+            for v in r.vulnerabilities:
+                sarif_results_list.append(
+                    {
+                        "ruleId": v.id,
+                        "level": v.severity.value,
+                        "message": {"text": v.summary or v.id},
+                        "locations": [
+                            {
+                                "physicalLocation": {
+                                    "artifactLocation": {"uri": f"{r.package.name}=={r.package.version}"}
+                                }
+                            }
+                        ],
+                    }
+                )
+        sarif = {
+            "version": "2.1.0",
+            "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+            "runs": [
+                {
+                    "tool": {"driver": {"name": "ProvChain", "version": "1.0.0"}},
+                    "results": sarif_results_list,
+                }
+            ],
+        }
+        output_str = json_mod.dumps(sarif, indent=2)
+        if output:
+            Path(output).write_text(output_str)
+        else:
+            print(output_str)
+    elif format == "markdown":
+        md = "# Vulnerability Scan Report\n\n"
+        for r in results:
+            md += f"## {r.package.name}=={r.package.version}\n\n"
+            md += f"**Total:** {r.total_count} | **Critical:** {r.critical_count} | **High:** {r.high_count} | **Medium:** {r.medium_count} | **Low:** {r.low_count}\n\n"
+            for v in r.vulnerabilities:
+                md += f"- **{v.severity.value.upper()}** {v.id}: {v.summary or 'No summary'}\n"
+                if v.fixed_versions:
+                    md += f"  - Fixed in: {', '.join(v.fixed_versions)}\n"
+            md += "\n"
+        if output:
+            Path(output).write_text(md)
+        else:
+            print(md)
     else:
         # Unknown format, default to table
         _display_vulnerability_table(results)
@@ -163,9 +216,15 @@ def check(
         except Exception as e:
             # Network or other errors
             error_type = type(e).__name__
-            if "HTTP" in error_type or "Connection" in error_type or "Timeout" in error_type:
+            error_str = str(e)
+            if "HTTP" in error_type and "404" in error_str:
+                console.print(f"[red]Error: Package not found on PyPI: {spec.name}[/red]")
+                console.print(
+                    "[yellow]Tip: Verify the package name is correct[/yellow]"
+                )
+            elif "HTTP" in error_type or "Connection" in error_type or "Timeout" in error_type:
                 console.print("[red]Error: Network error while fetching package information[/red]")
-                console.print(f"[yellow]Details: {str(e)}[/yellow]")
+                console.print(f"[yellow]Details: {error_str}[/yellow]")
                 console.print("[yellow]Tip: Check your internet connection and try again[/yellow]")
             else:
                 console.print(f"[red]Error: Could not analyze package: {str(e)}[/red]")
@@ -174,7 +233,14 @@ def check(
 
     # Filter by severity if specified
     if severity:
-        severity_level = RiskLevel(severity.lower())
+        try:
+            severity_level = RiskLevel(severity.lower())
+        except ValueError:
+            valid = ", ".join(r.value for r in RiskLevel)
+            console.print(
+                f"[red]Error:[/red] Invalid severity '{severity}'. Valid values: {valid}"
+            )
+            raise typer.Exit(1)
         vuln_result.vulnerabilities = [
             v for v in vuln_result.vulnerabilities if v.severity == severity_level
         ]
@@ -187,7 +253,48 @@ def check(
         import json
 
         output_str = json.dumps(vuln_result.model_dump(), indent=2, default=str)
-        console.print(output_str)
+        print(output_str)
+    elif format == "sarif":
+        import json as json_mod
+
+        sarif_results_list: list[dict[str, object]] = []
+        for v in vuln_result.vulnerabilities:
+            sarif_results_list.append(
+                {
+                    "ruleId": v.id,
+                    "level": v.severity.value,
+                    "message": {"text": v.summary or v.id},
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {
+                                    "uri": f"{vuln_result.package.name}=={vuln_result.package.version}"
+                                }
+                            }
+                        }
+                    ],
+                }
+            )
+        sarif = {
+            "version": "2.1.0",
+            "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+            "runs": [
+                {
+                    "tool": {"driver": {"name": "ProvChain", "version": "1.0.0"}},
+                    "results": sarif_results_list,
+                }
+            ],
+        }
+        print(json_mod.dumps(sarif, indent=2))
+    elif format == "markdown":
+        md = "# Vulnerability Report\n\n"
+        md += f"## {vuln_result.package.name}=={vuln_result.package.version}\n\n"
+        md += f"**Total:** {vuln_result.total_count} | **Critical:** {vuln_result.critical_count} | **High:** {vuln_result.high_count} | **Medium:** {vuln_result.medium_count} | **Low:** {vuln_result.low_count}\n\n"
+        for v in vuln_result.vulnerabilities:
+            md += f"- **{v.severity.value.upper()}** {v.id}: {v.summary or 'No summary'}\n"
+            if v.fixed_versions:
+                md += f"  - Fixed in: {', '.join(v.fixed_versions)}\n"
+        print(md)
     else:
         _display_vulnerability_table([vuln_result])
 

@@ -33,11 +33,33 @@ def generate_sbom_from_requirements(requirements_path: str, name: str = "project
 
 
 def load_sbom_from_file(path: str | Path) -> SBOM:
-    """Load SBOM from JSON file"""
+    """Load SBOM from JSON file (ProvChain native or CycloneDX format)"""
     path = Path(path)
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
-        return SBOM.model_validate(data)
+
+    # Detect CycloneDX format and convert to ProvChain SBOM
+    if isinstance(data, dict) and data.get("bomFormat") == "CycloneDX":
+        packages = []
+        for comp in data.get("components", []):
+            name = comp.get("name", "")
+            version = comp.get("version", "unknown")
+            ecosystem = "pypi"
+            purl = comp.get("purl", "")
+            if purl.startswith("pkg:npm/"):
+                ecosystem = "npm"
+            elif purl.startswith("pkg:cargo/"):
+                ecosystem = "cargo"
+            packages.append(
+                PackageIdentifier(ecosystem=ecosystem, name=name, version=version)
+            )
+        return SBOM(
+            name=data.get("metadata", {}).get("component", {}).get("name", str(path.stem)),
+            packages=packages,
+            source=str(path),
+        )
+
+    return SBOM.model_validate(data)
 
 
 def save_sbom_to_file(sbom: SBOM, path: str | Path) -> None:

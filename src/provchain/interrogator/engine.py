@@ -1,10 +1,19 @@
 """Interrogator engine: Main analysis orchestrator"""
 
 import concurrent.futures
+import logging
 
 from provchain.data.cache import Cache
 from provchain.data.db import Database
-from provchain.data.models import PackageIdentifier, PackageMetadata, VetReport
+from provchain.data.models import (
+    AnalysisResult,
+    Finding,
+    MaintainerInfo,
+    PackageIdentifier,
+    PackageMetadata,
+    RiskLevel,
+    VetReport,
+)
 from provchain.integrations.pypi import PyPIClient
 from provchain.interrogator.analyzers.attack import AttackAnalyzer
 from provchain.interrogator.analyzers.base import BaseAnalyzer
@@ -16,6 +25,11 @@ from provchain.interrogator.analyzers.typosquat import TyposquatAnalyzer
 from provchain.interrogator.analyzers.vulnerability import VulnerabilityAnalyzer
 from provchain.interrogator.risk_scorer import RiskScorer
 from provchain.interrogator.sandbox.container import check_docker_available
+
+logger = logging.getLogger(__name__)
+
+# Analyzers that can run without real PyPI metadata (only need the package name)
+_METADATA_INDEPENDENT_ANALYZERS = {"typosquat"}
 
 
 class InterrogatorEngine:
@@ -74,51 +88,100 @@ class InterrogatorEngine:
 
         return analyzers
 
+    @staticmethod
+    def _minimal_metadata(identifier: PackageIdentifier) -> PackageMetadata:
+        """Create a minimal PackageMetadata when PyPI metadata is unavailable."""
+        return PackageMetadata(
+            identifier=identifier,
+            description=None,
+            homepage=None,
+            repository=None,
+            license=None,
+            maintainers=[],
+            dependencies=[],
+            first_release=None,
+            latest_release=None,
+            download_count=None,
+        )
+
     def analyze_package(
         self, package_identifier: PackageIdentifier, package_metadata: PackageMetadata | None = None
     ) -> VetReport:
         """Analyze a package and return report"""
+        metadata_fetch_failed = False
+
         # Fetch metadata if not provided
         if package_metadata is None:
-            with PyPIClient() as pypi:
-                package_metadata = pypi.get_package_info(
-                    package_identifier.name,
-                    package_identifier.version if package_identifier.version != "latest" else None,
-                )
+            try:
+                with PyPIClient() as pypi:
+                    package_metadata = pypi.get_package_info(
+                        package_identifier.name,
+                        package_identifier.version if package_identifier.version != "latest" else None,
+                    )
+            except Exception as e:
+                logger.warning("PyPI metadata fetch failed for %s: %s", package_identifier.name, e)
+                metadata_fetch_failed = True
+                package_metadata = self._minimal_metadata(package_identifier)
 
         # Get analyzers
-        analyzers = self._get_analyzers()
+        all_analyzers = self._get_analyzers()
+
+        # If metadata fetch failed, only run metadata-independent analyzers
+        if metadata_fetch_failed:
+            analyzers = [a for a in all_analyzers if a.name in _METADATA_INDEPENDENT_ANALYZERS]
+        else:
+            analyzers = all_analyzers
 
         # Run analyzers in parallel
         results = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(analyzers)) as executor:
-            futures = {
-                executor.submit(analyzer.analyze, package_metadata): analyzer
-                for analyzer in analyzers
-            }
+        if analyzers:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max(len(analyzers), 1)) as executor:
+                futures = {
+                    executor.submit(analyzer.analyze, package_metadata): analyzer
+                    for analyzer in analyzers
+                }
 
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    result = future.result()
-                    results.append(result)
-                except Exception as e:
-                    # Log error and continue with other analyzers
-                    analyzer = futures[future]
-                    import logging
-
-                    logger = logging.getLogger(__name__)
-                    logger.warning(f"Analyzer {analyzer.name} failed: {e}")
-                    from provchain.data.models import AnalysisResult
-
-                    results.append(
-                        AnalysisResult(
-                            analyzer=analyzer.name,
-                            risk_score=0.0,
-                            confidence=0.0,
-                            findings=[],
-                            raw_data={"error": str(e)},
+                for future in concurrent.futures.as_completed(futures):
+                    try:
+                        result = future.result()
+                        results.append(result)
+                    except Exception as e:
+                        analyzer = futures[future]
+                        logger.warning("Analyzer %s failed: %s", analyzer.name, e)
+                        results.append(
+                            AnalysisResult(
+                                analyzer=analyzer.name,
+                                risk_score=0.0,
+                                confidence=0.0,
+                                findings=[],
+                                raw_data={"error": str(e)},
+                            )
                         )
-                    )
+
+        # If metadata fetch failed, add a finding about it
+        if metadata_fetch_failed:
+            results.append(
+                AnalysisResult(
+                    analyzer="metadata",
+                    risk_score=3.0,
+                    confidence=0.5,
+                    findings=[
+                        Finding(
+                            id="package_not_found",
+                            title="Package not found on PyPI",
+                            description=(
+                                f"Package '{package_identifier.name}' does not exist on PyPI. "
+                                "This could indicate a typo, a removed package, or a package "
+                                "that has not been published yet."
+                            ),
+                            severity=RiskLevel.MEDIUM,
+                            evidence=[f"Package: {package_identifier.name}"],
+                            remediation="Verify the package name is correct before installing.",
+                        )
+                    ],
+                    raw_data={"package_exists": False},
+                )
+            )
 
         # Calculate risk score
         risk_score_data = self.risk_scorer.calculate(results)

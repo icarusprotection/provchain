@@ -1,5 +1,6 @@
 """Verify command: Provenance checking"""
 
+import json
 from pathlib import Path
 
 import typer
@@ -23,13 +24,13 @@ def verify(
     if artifact_path.exists():
         # Verify local artifact
         result = engine.verify_artifact(artifact_path)
-        console.print(f"Verification result: {result}")
+        print(json.dumps(result, indent=2, default=str))
     else:
         # Try to parse as package specifier
         try:
             spec = parse_package_spec(artifact)
             result = engine.verify_package(spec.to_identifier())
-            console.print(f"Verification result: {result}")
+            print(json.dumps(result, indent=2, default=str))
         except ValueError:
             console.print(
                 f"[red]Error:[/red] Invalid artifact path or package specifier: {artifact}"

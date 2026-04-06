@@ -1,12 +1,35 @@
 """Pytest configuration and fixtures"""
 
+import os
+import shutil
 import tempfile
+import uuid
 from pathlib import Path
 
 import pytest
 
 from provchain.data.cache import Cache
 from provchain.data.db import Database
+
+TEST_TEMP_ROOT = Path(__file__).resolve().parent / "_sandbox_tmp"
+TEST_TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+
+# Keep Python tempfile usage inside the repo so tests remain sandbox-friendly.
+os.environ["TMP"] = str(TEST_TEMP_ROOT)
+os.environ["TEMP"] = str(TEST_TEMP_ROOT)
+os.environ.setdefault("TMPDIR", str(TEST_TEMP_ROOT))
+tempfile.tempdir = str(TEST_TEMP_ROOT)
+
+
+@pytest.fixture
+def tmp_path():
+    """Provide a writable per-test temp directory inside the repo."""
+    path = TEST_TEMP_ROOT / f"case-{uuid.uuid4().hex}"
+    path.mkdir(parents=True, exist_ok=False)
+    try:
+        yield path
+    finally:
+        shutil.rmtree(path, ignore_errors=True)
 
 
 @pytest.fixture
@@ -41,8 +64,9 @@ def cache(temp_db):
 @pytest.fixture
 def sample_package_metadata():
     """Sample package metadata for testing"""
-    from provchain.data.models import MaintainerInfo, PackageIdentifier, PackageMetadata
     from datetime import datetime, timezone
+
+    from provchain.data.models import MaintainerInfo, PackageIdentifier, PackageMetadata
 
     return PackageMetadata(
         identifier=PackageIdentifier(ecosystem="pypi", name="test-package", version="1.0.0"),

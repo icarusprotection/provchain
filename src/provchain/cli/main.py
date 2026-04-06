@@ -6,7 +6,7 @@ import typer
 from rich.console import Console
 
 from provchain import __version__
-from provchain.cli.commands import attack, config, sbom, verify, vet, vuln, watch
+from provchain.cli.commands import attack, config, enterprise, sbom, verify, vet, vuln, watch
 
 console = Console()
 
@@ -27,10 +27,13 @@ def main_callback() -> None:
 # Add command groups
 # Note: vet is a direct command function, not a group, so we register it directly
 _app.command(name="vet", help="Analyze package before installation")(vet.vet)
+_app.command(name="login", help="Configure enterprise backend authentication")(enterprise.login)
+_app.command(name="logout", help="Clear enterprise backend authentication")(enterprise.logout)
 _app.add_typer(verify.app, name="verify")
 _app.add_typer(watch.app, name="watch")
 _app.add_typer(sbom.app, name="sbom")
 _app.add_typer(config.app, name="config")
+_app.add_typer(enterprise.app, name="enterprise")
 _app.add_typer(vuln.app, name="vuln")
 _app.add_typer(attack.app, name="attack")
 

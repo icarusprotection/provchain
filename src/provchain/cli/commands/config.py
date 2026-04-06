@@ -45,6 +45,11 @@ color = true
 [integrations]
 github_token = ""
 pypi_token = ""
+
+[enterprise]
+enabled = false
+api_url = ""
+api_key = ""
 """
 
     config_path.write_text(config_content)
