@@ -15,6 +15,7 @@ from provchain.config import Config
 from provchain.core.package import parse_package_spec, parse_requirements_file
 from provchain.data.cache import Cache
 from provchain.data.db import Database
+from provchain.data.models import PackageIdentifier, VetReport
 from provchain.enterprise.client import (
     EnterpriseClient,
     enterprise_enabled,
@@ -218,7 +219,7 @@ def vet(
     engine_cache = Cache(engine_db)
     engine = InterrogatorEngine(enable_behavior=deep, cache=engine_cache, db=engine_db)
 
-    packages_to_analyze = []
+    packages_to_analyze: list[PackageIdentifier] = []
     if requirements:
         specs = parse_requirements_file(requirements)
         for spec in specs:
@@ -233,7 +234,7 @@ def vet(
 
     reports = []
 
-    def analyze_single_package(pkg_id):
+    def analyze_single_package(pkg_id: PackageIdentifier) -> VetReport:
         """Analyze a single package."""
         try:
             cached_report = db.get_analysis(pkg_id.ecosystem, pkg_id.name, pkg_id.version)
@@ -292,23 +293,23 @@ def vet(
             )
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=parallel) as executor:
-                futures = {
-                    executor.submit(analyze_single_package, pkg_id): pkg_id
-                    for pkg_id in packages_to_analyze
+                local_futures = {
+                    executor.submit(analyze_single_package, pkg): pkg
+                    for pkg in packages_to_analyze
                 }
 
-                for future in concurrent.futures.as_completed(futures):
-                    pkg_id = futures[future]
+                for future in concurrent.futures.as_completed(local_futures):
+                    pkg = local_futures[future]
                     try:
                         report = future.result()
                         reports.append(report)
-                        progress.update(task, advance=1, description=f"Analyzed {pkg_id.name}")
+                        progress.update(task, advance=1, description=f"Analyzed {pkg.name}")
                     except Exception as exc:
-                        console.print(f"[red]Failed to analyze {pkg_id.name}: {exc}[/red]")
+                        console.print(f"[red]Failed to analyze {pkg.name}: {exc}[/red]")
                         progress.update(task, advance=1)
     else:
-        for pkg_id in packages_to_analyze:
-            reports.append(analyze_single_package(pkg_id))
+        for pkg in packages_to_analyze:
+            reports.append(analyze_single_package(pkg))
 
     for report in reports:
         format_report(report, format, console)

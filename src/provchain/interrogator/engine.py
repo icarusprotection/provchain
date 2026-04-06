@@ -8,7 +8,6 @@ from provchain.data.db import Database
 from provchain.data.models import (
     AnalysisResult,
     Finding,
-    MaintainerInfo,
     PackageIdentifier,
     PackageMetadata,
     RiskLevel,
